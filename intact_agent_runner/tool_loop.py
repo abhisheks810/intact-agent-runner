@@ -37,7 +37,8 @@ def tool_loop_instructions() -> str:
         "Use only the MCP tool names and schemas provided in the prompt, or finish.",
         "Prefer one small, commit-worthy map_platform task.",
         "Existing files must use get_map_platform_file_metadata before write_map_platform_file.",
-        "Use create_map_platform_change_request before write_map_platform_file.",
+        "Use create_map_platform_change_request yourself before write_map_platform_file; do not stop because no prior change request exists.",
+        "Do not finish without either writing a scoped file change or recording a concrete external blocker.",
         "No production deploys, secrets changes, destructive Git commands, broad rewrites, or generated output edits.",
     ])
 
@@ -312,13 +313,18 @@ def run_tool_loop_implementation(config, provider, plan: dict) -> dict:
 
 
 def normalize_finish_args(args: dict) -> dict:
+    blockers = args.get("blockers") if isinstance(args.get("blockers"), list) else []
+    notes = args.get("notes")
+    result = args.get("result")
+    if result == "blocked" and isinstance(notes, str) and notes.strip() and not blockers:
+        blockers = [notes.strip()]
     return {
         "summary": args.get("summary") or "Tool-loop run finished.",
         "changed_files": args.get("changed_files") if isinstance(args.get("changed_files"), list) else [],
         "verification": args.get("verification") if isinstance(args.get("verification"), list) else [],
         "commit_message": args.get("commit_message") or "agent-run: map-platform host iteration",
         "deferred": args.get("deferred") if isinstance(args.get("deferred"), list) else [],
-        "blockers": args.get("blockers") if isinstance(args.get("blockers"), list) else [],
+        "blockers": blockers,
     }
 
 

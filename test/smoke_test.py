@@ -93,7 +93,7 @@ from intact_agent_runner.repo_intelligence import build_repo_intelligence
 from intact_agent_runner.mcp_context import build_mcp_tool_context
 from intact_agent_runner.development_agent import build_inspection_followup_prompt, build_patch_repair_prompt, check_agent_patch, finalize_repo_paths, parse_inspect_command, validate_patch_paths
 from intact_agent_runner.run_log import sanitize_markdown
-from intact_agent_runner.tool_loop import run_tool_loop_implementation
+from intact_agent_runner.tool_loop import normalize_finish_args, run_tool_loop_implementation
 
 config = load_config()
 dashboard_state = collect_dashboard_state(config)
@@ -169,6 +169,9 @@ if "Inspection command outputs" not in followup_prompt or "backend/main.py" not 
 
 if "trailing   \n" in sanitize_markdown("trailing   \nclean\n"):
     raise RuntimeError("run-log markdown sanitizer did not strip trailing whitespace")
+blocked_finish = normalize_finish_args({"result": "blocked", "notes": "needs a real blocker"})
+if blocked_finish["blockers"] != ["needs a real blocker"]:
+    raise RuntimeError("blocked finish notes were not preserved as blockers")
 
 class FakeToolProvider:
     name = "fake"
