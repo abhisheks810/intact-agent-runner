@@ -1,0 +1,15 @@
+{
+  "mcpServerRoot": "/Users/abhisheksrivastava/intact-mcp-server",
+  "mapPlatformRoot": "/Users/abhisheksrivastava/map_platform",
+  "activeProduct": "map-platform",
+  "llmProvider": "none",
+  "maxIterationsPerRun": 1,
+  "defaultAutomationId": "intact-agent-runner-manual",
+  "policy": {
+    "allowProductionDeploy": false,
+    "allowSecretsAccess": false,
+    "allowDestructiveActions": false,
+    "preferUnblockedWork": true,
+    "requireAgentRunLog": true
+  }
+}
