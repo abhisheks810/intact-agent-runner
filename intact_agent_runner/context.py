@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .commands import git_status
 from .files import latest_markdown, read_text
+from .repo_intelligence import build_repo_intelligence
 
 
 def snippets(files: list[dict], max_chars: int = 600) -> list[str]:
@@ -44,6 +45,7 @@ def load_map_platform_context(config) -> dict:
             }], 1000),
             *snippets(strategy_files, 800),
         ],
+        "repoIntelligence": build_repo_intelligence(config),
         "gitStatus": {
             "map_platform": git_status(config.map_platform_root),
             "intact-mcp-server": git_status(config.mcp_server_root),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import PurePosixPath
 
 from .commands import command_summary, run_command
 
@@ -53,6 +54,9 @@ def build_development_prompt(plan: dict, config) -> str:
         "",
         "Recent implementation results:",
         "\n".join(result["relative"] for result in plan["context"]["implementationResults"]),
+        "",
+        "Repository intelligence packet:",
+        json.dumps(plan["context"].get("repoIntelligence", {}), indent=2),
         "",
         "Git status:",
         git_status,
@@ -115,9 +119,65 @@ def normalize_decision(decision: dict) -> dict:
     }
 
 
+
+BLOCKED_PATH_PARTS = {".git", "node_modules", "dist", "build", ".venv", "__pycache__"}
+
+
+def validate_patch_paths(config, decision: dict) -> list[str]:
+    repo_root = config.allowed_repo_roots[decision["targetRepo"]]
+    repo_dir_name = PurePosixPath(repo_root).name
+    blocked: list[str] = []
+    for path in changed_paths_from_diff(decision["unifiedDiff"]):
+        if path == "/dev/null":
+            continue
+        pure = PurePosixPath(path)
+        if pure.is_absolute():
+            blocked.append(f"absolute patch path is not allowed: {path}")
+            continue
+        if ".." in pure.parts:
+            blocked.append(f"parent-directory traversal is not allowed: {path}")
+        if pure.parts and pure.parts[0] == repo_dir_name:
+            blocked.append(
+                f"patch path must be repo-relative and must not start with `{repo_dir_name}/`: {path}"
+            )
+        if any(part in BLOCKED_PATH_PARTS for part in pure.parts):
+            blocked.append(f"generated or unsafe patch path is not allowed: {path}")
+    return blocked
+
+
+def changed_paths_from_diff(diff_text: str) -> list[str]:
+    paths: list[str] = []
+    for line in diff_text.splitlines():
+        if line.startswith("diff --git "):
+            tokens = line.split()
+            if len(tokens) >= 4:
+                paths.append(strip_diff_prefix(tokens[2]))
+                paths.append(strip_diff_prefix(tokens[3]))
+        elif line.startswith("--- ") or line.startswith("+++ "):
+            token = line.split(maxsplit=1)[1]
+            paths.append(strip_diff_prefix(token.split("\t", 1)[0]))
+    unique: list[str] = []
+    for path in paths:
+        if path not in unique:
+            unique.append(path)
+    return unique
+
+
+def strip_diff_prefix(path: str) -> str:
+    if path.startswith("a/") or path.startswith("b/"):
+        return path[2:]
+    return path
+
 def apply_agent_patch(config, decision: dict) -> dict:
     if not decision["unifiedDiff"].strip():
         return {"applied": False, "summary": "No patch proposed by agent.", "commands": []}
+    path_errors = validate_patch_paths(config, decision)
+    if path_errors:
+        return {
+            "applied": False,
+            "summary": "Patch path validation failed.\n" + "\n".join(path_errors),
+            "commands": [],
+        }
     repo_root = config.allowed_repo_roots[decision["targetRepo"]]
     check = run_command(
         "git",
