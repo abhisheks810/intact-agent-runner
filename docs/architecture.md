@@ -35,6 +35,7 @@ Future mode:
 | `intact_agent_runner/context.py` | Reads tasks, feedback, proposals, results, run logs, repo intelligence, and MCP tool context. |
 | `intact_agent_runner/mcp_stdio.py` | Minimal MCP JSON-RPC stdio client with bounded response reads. |
 | `intact_agent_runner/mcp_context.py` | Calls read-only intact MCP tools for map-platform files, searches, git status, and dry-run doctors. |
+| `intact_agent_runner/dashboard.py` | Local web UI and JSON telemetry endpoint for agent runs, results, scheduler logs, repo state, and lock state. |
 | `intact_agent_runner/llm.py` | Provider adapter boundary, including OpenAI Responses API. |
 | `intact_agent_runner/run_log.py` | Writes agent run audit logs and implementation results. |
 
@@ -72,6 +73,23 @@ bash scripts/install-launchd-map-platform-loop.sh
 ```
 
 The wrapper uses `/tmp/intact-map-platform-host-runner.lock` to prevent overlapping runs.
+
+## Development Dashboard
+
+The runner includes a local dashboard served with Python stdlib only:
+
+```bash
+cd /Users/abhisheksrivastava/intact-agent-runner
+npm run dashboard
+```
+
+Default URL:
+
+```text
+http://127.0.0.1:8791
+```
+
+The dashboard exposes `/api/status` and `/api/artifact`. It reads the launchd job state, host-runner lock, local stdout/stderr logs, repo cleanliness, agent-run artifacts, and implementation-result artifacts. It is read-only and uses the same durable MCP artifact store as the scheduled loop.
 
 ## MCP Stdio Context
 

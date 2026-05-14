@@ -55,12 +55,18 @@ except RuntimeError as error:
         raise
 
 from intact_agent_runner.config import load_config
+from intact_agent_runner.dashboard import collect_dashboard_state, render_dashboard_html
 from intact_agent_runner.repo_intelligence import build_repo_intelligence
 from intact_agent_runner.mcp_context import build_mcp_tool_context
 from intact_agent_runner.development_agent import build_patch_repair_prompt, check_agent_patch, validate_patch_paths
 from intact_agent_runner.host_loop import repair_until_patch_checks
 
 config = load_config()
+dashboard_state = collect_dashboard_state(config)
+if "scheduler" not in dashboard_state or "repos" not in dashboard_state:
+    raise RuntimeError("dashboard state missing scheduler or repo telemetry")
+if "Intact Agent Development" not in render_dashboard_html():
+    raise RuntimeError("dashboard HTML missing expected title")
 intelligence = build_repo_intelligence(config)
 if "map_platform" not in intelligence:
     raise RuntimeError("repo intelligence missing map_platform packet")

@@ -8,6 +8,7 @@
     "run:map": "python3 -m intact_agent_runner.cli run --product map-platform",
     "host-run:map": "python3 -m intact_agent_runner.cli host-run --product map-platform",
     "plan:map": "python3 -m intact_agent_runner.cli plan --product map-platform",
+    "dashboard": "python3 -m intact_agent_runner.cli dashboard --product map-platform",
     "test": "PYTHONDONTWRITEBYTECODE=1 python3 test/smoke_test.py"
   },
   "license": "UNLICENSED"

@@ -30,6 +30,7 @@ It can:
 - run repo-local verification;
 - commit and push verified changes when `COMMIT_AND_PUSH=1`;
 - write both agent-run and implementation-result artifacts.
+- serve a local development dashboard for run progress, logs, history, repo state, scheduler state, and telemetry.
 
 ## Architecture
 
@@ -82,7 +83,25 @@ The existing compatibility commands still work:
 npm run plan:map
 npm run run:map
 npm run host-run:map
+npm run dashboard
 ```
+
+## Dashboard
+
+Start the local dashboard:
+
+```bash
+cd /Users/abhisheksrivastava/intact-agent-runner
+npm run dashboard
+```
+
+Open:
+
+```text
+http://127.0.0.1:8791
+```
+
+The dashboard reads durable MCP artifacts, local scheduler logs, repo status, launchd state, and the host-runner lock. It does not mutate product repos.
 
 ## Environment
 

@@ -4,6 +4,7 @@ import json
 import sys
 
 from .config import load_config
+from .dashboard import serve_dashboard
 from .host_loop import run_host_map_platform_loop
 from .runner import plan_map_platform, run_map_platform
 
@@ -23,6 +24,12 @@ def main() -> int:
         raise RuntimeError(f"Unsupported product: {product}")
 
     config = load_config()
+
+    if command == "dashboard":
+        host = arg_value("--host", "127.0.0.1")
+        port = int(arg_value("--port", "8791"))
+        serve_dashboard(config, host=host, port=port)
+        return 0
 
     if command == "plan":
         plan = plan_map_platform(config)
