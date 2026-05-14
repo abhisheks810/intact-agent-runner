@@ -33,8 +33,7 @@ Future mode:
 | `intact_agent_runner/runner.py` | Product runner and role orchestration. |
 | `intact_agent_runner/host_loop.py` | Host-loop replacement for scheduled map-platform development. |
 | `intact_agent_runner/development_agent.py` | Bounded OpenAI decision parsing, patch application, verification, and Git finalization. |
-| `intact_agent_runner/tool_loop.py` | Structured model action loop for inspection, scoped writes, verification, generated diff capture, and diagnostics. |
-| `intact_agent_runner/edit_session.py` | Repo-relative path policy, read-before-write hash checks, changed-file limits, and tool action recording. |
+| `intact_agent_runner/tool_loop.py` | Structured model action loop that discovers MCP tool schemas, calls MCP tools against a temporary worktree, captures generated diffs, and records diagnostics. |
 | `intact_agent_runner/worktree.py` | Temporary Git worktree creation, generated diff validation, canonical diff apply, verification, and cleanup. |
 | `intact_agent_runner/commands.py` | Child-process wrapper used for preflight, verification, and Git commands. |
 | `intact_agent_runner/agents.py` | Loads and selects agent specs. |
@@ -105,8 +104,8 @@ The host runner now starts `/Users/abhisheksrivastava/intact-mcp-server/src/serv
 
 ## Structured Tool Loop
 
-OpenAI-backed runs no longer ask the model to return a unified diff. The model returns one JSON tool action at a time from a bounded allowlist: list/read/search/status/diff, scoped full-file writes, verification, readonly commands, and finish. Existing files must be read before write, and writes include the current `sha256` so the runner can reject stale edits.
+OpenAI-backed runs no longer ask the model to return a unified diff. The runner starts `intact-mcp-server` against the temporary worktree with `MAP_PLATFORM_WRITE_ENABLED=true`, reads the actual MCP `tools/list` response, and prompts the model with those tool names, descriptions, and schemas. The model returns one JSON action at a time using MCP tool names such as `list_map_platform_directory`, `get_map_platform_file_metadata`, `create_map_platform_change_request`, `write_map_platform_file`, and `run_map_platform_verify`, or the runner-private `finish` action.
 
-All edits happen in a temporary Git worktree created from the canonical target repo. The runner generates the unified diff from Git, checks it with `git diff --check` and `git apply --check --whitespace=nowarn`, runs repo verification in the temporary worktree, then applies the generated diff to the canonical repo only after those gates pass. Git finalization stages only the changed paths returned by the generated diff.
+All edits happen through MCP tools in a temporary Git worktree created from the canonical target repo. The runner generates the unified diff from Git, checks it with `git diff --check` and `git apply --check --whitespace=nowarn`, runs repo verification in the temporary worktree, then applies the generated diff to the canonical repo only after those gates pass. Git finalization stages only the changed paths returned by the generated diff.
 
 Failed validation or verification leaves the canonical product repo unchanged. Run artifacts include the action log, generated diff, raw model responses, validation output, verification output, and cleanup/finalization status.

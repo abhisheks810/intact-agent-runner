@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -90,7 +92,6 @@ from intact_agent_runner.dashboard import collect_dashboard_state, render_dashbo
 from intact_agent_runner.repo_intelligence import build_repo_intelligence
 from intact_agent_runner.mcp_context import build_mcp_tool_context
 from intact_agent_runner.development_agent import build_inspection_followup_prompt, build_patch_repair_prompt, check_agent_patch, finalize_repo_paths, parse_inspect_command, validate_patch_paths
-from intact_agent_runner.edit_session import EditSession
 from intact_agent_runner.tool_loop import run_tool_loop_implementation
 
 config = load_config()
@@ -165,56 +166,52 @@ followup_prompt = build_inspection_followup_prompt({"selectedSpec": {}, "context
 if "Inspection command outputs" not in followup_prompt or "backend/main.py" not in followup_prompt:
     raise RuntimeError("inspection follow-up prompt missing command output")
 
-with tempfile.TemporaryDirectory(prefix="intact-runner-edit-session-") as temp_root:
-    temp_path = Path(temp_root)
-    (temp_path / "README.md").write_text("hello\n", encoding="utf-8")
-    session = EditSession(repo_root=str(temp_path), repo_name="map_platform")
-    read = session.read_file("README.md")
-    if not read.ok or not read.data.get("sha256"):
-        raise RuntimeError("edit session did not return file hash")
-    stale = session.write_file_full("README.md", "updated\n", expected_sha256="bad")
-    if stale.ok:
-        raise RuntimeError("edit session allowed stale write")
-    write = session.write_file_full("README.md", "updated\n", expected_sha256=read.data["sha256"])
-    if not write.ok:
-        raise RuntimeError(f"edit session rejected valid scoped write: {write.output}")
-    if session.write_file_full("../escape.md", "bad\n").ok:
-        raise RuntimeError("edit session allowed path escape")
-    listed = session.list_dir(".")
-    if not listed.ok or "README.md" not in listed.output:
-        raise RuntimeError("edit session list_dir did not list safe directory contents")
-
-
 class FakeToolProvider:
     name = "fake"
 
-    def __init__(self):
-        self.responses = [
-            {"tool": "list_dir", "args": {"path": "docs"}, "reason": "inspect docs directory"},
-            {"tool": "add_file", "args": {"path": "docs/agent-smoke.md", "content": "# Agent smoke\n\nGenerated through structured tools.\n"}, "reason": "add a small doc"},
-            {"tool": "finish", "args": {"summary": "Added a structured tool-loop smoke doc.", "changed_files": ["docs/agent-smoke.md"], "verification": ["verify.sh"], "commit_message": "agent-run: structured tool loop smoke", "deferred": [], "blockers": []}, "reason": "done"},
-        ]
+    def __init__(self, expected_sha):
+        self.expected_sha = expected_sha
         self.index = 0
 
     def complete(self, *, instructions, prompt):
-        if self.index >= len(self.responses):
+        change_request = re.search(r'map-platform-change-requests/[^"\s]+\.md', prompt)
+        responses = [
+            {"tool": "list_dir", "args": {"path": "."}, "reason": "deliberately request an unavailable alias to exercise correction"},
+            {"tool": "list_map_platform_directory", "args": {"path": "."}, "reason": "inspect repository root through MCP"},
+            {"tool": "get_map_platform_file_metadata", "args": {"path": "README.md"}, "reason": "capture hash before scoped write"},
+            {"tool": "create_map_platform_change_request", "args": {"title": "Structured Tool Loop Smoke", "agent": "qa-evaluation-agent", "objective": "Verify MCP-backed runner writes.", "allowed_files": ["README.md"], "verification": ["run_map_platform_verify"], "approval_note": "Smoke test scoped write."}, "reason": "approve scoped write"},
+            {"tool": "write_map_platform_file", "args": {"path": "README.md", "content": "# Test map platform\n\nUpdated through MCP-backed tool loop.\n", "expected_sha256": self.expected_sha, "change_request_path": change_request.group(0) if change_request else "map-platform-change-requests/missing.md", "approval_note": "Smoke test scoped write."}, "reason": "write through MCP"},
+            {"tool": "run_map_platform_verify", "args": {"timeout_ms": 10000}, "reason": "verify through MCP"},
+            {"tool": "finish", "args": {"summary": "Updated README through MCP-backed tool loop.", "changed_files": ["README.md"], "verification": ["run_map_platform_verify"], "commit_message": "agent-run: structured MCP tool loop smoke", "deferred": [], "blockers": []}, "reason": "done"},
+        ]
+        if self.index >= len(responses):
             raise RuntimeError("unexpected extra tool-loop call")
-        value = self.responses[self.index]
+        value = responses[self.index]
         self.index += 1
         return {"text": __import__("json").dumps(value)}
 
 
 with tempfile.TemporaryDirectory(prefix="intact-runner-tool-loop-") as temp_root:
-    repo = Path(temp_root)
+    repo = Path(temp_root) / "repo"
+    repo.mkdir()
     subprocess.run(["git", "init", "-b", "main"], cwd=repo, check=True, text=True, capture_output=True)
     subprocess.run(["git", "config", "user.email", "runner@example.test"], cwd=repo, check=True)
     subprocess.run(["git", "config", "user.name", "Runner Test"], cwd=repo, check=True)
     (repo / "scripts").mkdir()
     (repo / "scripts" / "verify.sh").write_text("#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n", encoding="utf-8")
-    (repo / "README.md").write_text("# Test map platform\n", encoding="utf-8")
+    original_readme = "# Test map platform\n"
+    (repo / "README.md").write_text(original_readme, encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-m", "initial"], cwd=repo, check=True, text=True, capture_output=True)
-    fake_config = SimpleNamespace(allowed_repo_roots={"map_platform": str(repo)})
+    temp_mcp = Path(temp_root) / "mcp"
+    (temp_mcp / "src").mkdir(parents=True)
+    shutil.copyfile("/Users/abhisheksrivastava/intact-mcp-server/src/server.js", temp_mcp / "src" / "server.js")
+    fake_config = SimpleNamespace(
+        allowed_repo_roots={"map_platform": str(repo)},
+        mcp_server_root=str(temp_mcp),
+        map_platform_root=str(repo),
+        host_strategy_root=str(RUNTIME_HOST_STRATEGY_ROOT),
+    )
     fake_plan = {
         "selectedAgent": "qa-evaluation-agent",
         "recommendedFocus": "structured tool-loop smoke",
@@ -228,20 +225,21 @@ with tempfile.TemporaryDirectory(prefix="intact-runner-tool-loop-") as temp_root
             "mcpToolContext": {},
         },
     }
-    implementation = run_tool_loop_implementation(fake_config, FakeToolProvider(), fake_plan)
+    expected_sha = hashlib.sha256(original_readme.encode("utf-8")).hexdigest()
+    implementation = run_tool_loop_implementation(fake_config, FakeToolProvider(expected_sha), fake_plan)
     if not implementation["patch"]["applied"]:
         raise RuntimeError("tool loop did not apply verified generated diff")
-    if not (repo / "docs" / "agent-smoke.md").exists():
-        raise RuntimeError("tool loop did not apply generated file to canonical repo")
+    if "Updated through MCP-backed tool loop" not in (repo / "README.md").read_text(encoding="utf-8"):
+        raise RuntimeError("tool loop did not apply MCP-generated file edit to canonical repo")
     status_check = subprocess.run(["git", "status", "--short", "--untracked-files=all"], cwd=repo, check=True, text=True, capture_output=True)
-    if "docs/agent-smoke.md" not in status_check.stdout:
+    if "README.md" not in status_check.stdout:
         raise RuntimeError("tool loop did not leave a reviewable canonical change")
     fake_config.commit_and_push = False
-    finalized = finalize_repo_paths(fake_config, "map_platform", "agent-run: structured tool loop smoke", ["docs/agent-smoke.md"])
+    finalized = finalize_repo_paths(fake_config, "map_platform", "agent-run: structured MCP tool loop smoke", ["README.md"])
     if not finalized["ok"]:
         raise RuntimeError("scoped finalization failed")
     clean_check = subprocess.run(["git", "status", "--short"], cwd=repo, check=True, text=True, capture_output=True)
     if clean_check.stdout.strip():
-        raise RuntimeError("scoped finalization left temp repo dirty")
+        raise RuntimeError(f"scoped finalization left temp repo dirty: {clean_check.stdout}")
 
 print("smoke test passed")

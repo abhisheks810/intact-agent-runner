@@ -24,8 +24,8 @@ It can:
 - run in dry-run mode without API keys;
 - run the mandatory map-platform preflight from host context;
 - call the OpenAI Responses API when `LLM_PROVIDER=openai`;
-- run OpenAI-backed implementation through a structured tool loop instead of asking the model to hand-author diffs;
-- perform code edits in an isolated temporary Git worktree;
+- run OpenAI-backed implementation through MCP `tools/list` discovery instead of asking the model to hand-author diffs;
+- perform code edits through `intact-mcp-server` tools pointed at an isolated temporary Git worktree;
 - generate the unified diff from Git after scoped file writes;
 - validate generated diffs with `git diff --check` and `git apply --check --whitespace=nowarn`;
 - run repo-local verification before applying generated diffs to the canonical product repo;
@@ -44,8 +44,8 @@ launchd / manual command
       -> reads tasks/proposals/feedback/artifacts
       -> invokes read-only intact-mcp-server stdio tools
       -> runs canonical map_platform preflight
-      -> optionally calls OpenAI through a bounded structured tool loop
-      -> edits an isolated temporary worktree
+      -> optionally calls OpenAI through a bounded MCP tool loop
+      -> edits an isolated temporary worktree through intact-mcp-server tools
       -> generates and validates a Git diff
       -> verifies, applies, commits scoped paths, and pushes
       -> writes agent run logs and implementation results

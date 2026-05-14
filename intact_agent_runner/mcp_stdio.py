@@ -15,9 +15,18 @@ class McpStdioError(RuntimeError):
 
 
 class McpStdioClient:
-    def __init__(self, config, *, timeout_s: float = 12.0):
+    def __init__(
+        self,
+        config,
+        *,
+        timeout_s: float = 12.0,
+        map_platform_root: str | None = None,
+        map_platform_write_enabled: bool = False,
+    ):
         self.config = config
         self.timeout_s = timeout_s
+        self.map_platform_root = map_platform_root or config.map_platform_root
+        self.map_platform_write_enabled = map_platform_write_enabled
         self.next_id = 1
         self.process: subprocess.Popen[str] | None = None
         self.stderr_chunks: list[str] = []
@@ -31,8 +40,8 @@ class McpStdioClient:
         env.update({
             "STRATEGY_ROOT": self.config.host_strategy_root,
             "INTACT_WORKSPACE": str(Path(self.config.mcp_server_root) / "data"),
-            "MAP_PLATFORM_ROOT": self.config.map_platform_root,
-            "MAP_PLATFORM_WRITE_ENABLED": "false",
+            "MAP_PLATFORM_ROOT": self.map_platform_root,
+            "MAP_PLATFORM_WRITE_ENABLED": "true" if self.map_platform_write_enabled else "false",
         })
         self.process = subprocess.Popen(
             ["node", str(server_js)],
