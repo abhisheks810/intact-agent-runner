@@ -56,6 +56,7 @@ except RuntimeError as error:
 
 from intact_agent_runner.config import load_config
 from intact_agent_runner.repo_intelligence import build_repo_intelligence
+from intact_agent_runner.mcp_context import build_mcp_tool_context
 from intact_agent_runner.development_agent import validate_patch_paths
 
 config = load_config()
@@ -67,6 +68,9 @@ if "pathPolicy" not in intelligence["map_platform"]:
 route_map = intelligence["map_platform"].get("routeEndpointMap", {})
 if route_map.get("backendRouteEndpoint") not in {"GET /route?origin=lat,lon&destination=lat,lon", "unknown"}:
     raise RuntimeError("repo intelligence has unexpected route endpoint shape")
+mcp_context = build_mcp_tool_context(config)
+if mcp_context.get("status") not in {"ok", "unavailable"}:
+    raise RuntimeError("MCP tool context returned unexpected status")
 
 bad_decision = {
     "targetRepo": "map_platform",

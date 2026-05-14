@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .commands import git_status
 from .files import latest_markdown, read_text
+from .mcp_context import build_mcp_tool_context
 from .repo_intelligence import build_repo_intelligence
 
 
@@ -28,6 +29,12 @@ def load_map_platform_context(config) -> dict:
     daily_reports = latest_markdown(data_root / "daily-reports", 3)
     strategy_files = latest_markdown(Path(config.host_strategy_root) / "docs", 8)
 
+    mcp_tool_context = (
+        build_mcp_tool_context(config)
+        if getattr(config, "mcp_stdio_enabled", True)
+        else {"status": "disabled", "server": "intact-mcp-server stdio"}
+    )
+
     return {
         "dataRoot": str(data_root),
         "tasks": tasks,
@@ -46,6 +53,7 @@ def load_map_platform_context(config) -> dict:
             *snippets(strategy_files, 800),
         ],
         "repoIntelligence": build_repo_intelligence(config),
+        "mcpToolContext": mcp_tool_context,
         "gitStatus": {
             "map_platform": git_status(config.map_platform_root),
             "intact-mcp-server": git_status(config.mcp_server_root),

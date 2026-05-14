@@ -18,6 +18,7 @@ It can:
 
 - load map-platform deep-agent specs;
 - inspect MCP artifact folders;
+- invoke read-only `intact-mcp-server` tools over MCP stdio for map-platform context and doctors;
 - choose a runnable agent role;
 - create a structured agent run log (falls back to `AGENT_RUNNER_ROOT/data/agent-runs` when `MCP_SERVER_ROOT` is not writable);
 - run in dry-run mode without API keys;
@@ -35,6 +36,7 @@ launchd / manual command
   -> intact-agent-runner
       -> loads agent specs from intact-mcp-server/data/agent-specs
       -> reads tasks/proposals/feedback/artifacts
+      -> invokes read-only intact-mcp-server stdio tools
       -> runs canonical map_platform preflight
       -> optionally calls OpenAI for a bounded patch
       -> verifies, commits, and pushes
@@ -91,6 +93,7 @@ AGENT_RUNNER_ROOT=/Users/abhisheksrivastava/intact-agent-runner
 LLM_PROVIDER=none
 OPENAI_MODEL=gpt-5.2
 COMMIT_AND_PUSH=1
+MCP_STDIO_ENABLED=1
 ```
 
 OpenAI-backed host-runner example:
@@ -123,6 +126,7 @@ export LLM_PROVIDER=openai
 export OPENAI_API_KEY=...
 export OPENAI_MODEL=gpt-5.2
 export COMMIT_AND_PUSH=1
+MCP_STDIO_ENABLED=1
 ```
 
 Install the LaunchAgent:

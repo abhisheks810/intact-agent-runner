@@ -17,6 +17,7 @@ class Config:
     openai_model: str
     automation_id: str
     commit_and_push: bool
+    mcp_stdio_enabled: bool
     allowed_repo_roots: dict[str, str]
 
 
@@ -33,6 +34,12 @@ def load_config() -> Config:
     )
     commit_env = os.environ.get("COMMIT_AND_PUSH")
     commit_and_push = commit_env == "1" if commit_env is not None else raw.get("commitAndPush") is not False
+    mcp_stdio_env = os.environ.get("MCP_STDIO_ENABLED")
+    mcp_stdio_enabled = (
+        mcp_stdio_env.lower() in {"1", "true", "yes"}
+        if mcp_stdio_env is not None
+        else raw.get("mcpStdioEnabled") is not False
+    )
     return Config(
         raw=raw,
         agent_runner_root=root,
@@ -43,6 +50,7 @@ def load_config() -> Config:
         openai_model=os.environ.get("OPENAI_MODEL") or raw.get("openaiModel") or "gpt-5.2",
         automation_id=os.environ.get("AUTOMATION_ID") or raw["defaultAutomationId"],
         commit_and_push=commit_and_push,
+        mcp_stdio_enabled=mcp_stdio_enabled,
         allowed_repo_roots={
             "map_platform": map_platform_root,
             "intact-mcp-server": mcp_server_root,
