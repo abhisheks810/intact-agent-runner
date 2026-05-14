@@ -225,8 +225,8 @@ def run_tool_loop_implementation(config, provider, plan: dict) -> dict:
 
             if final_args is None:
                 final_args = normalize_finish_args({
-                    "summary": "Tool loop action budget exhausted before a final response.",
-                    "blockers": ["Tool loop action budget exhausted."],
+                    "summary": "Model did not return finish before the action budget; runner evaluated the generated diff deterministically.",
+                    "deferred": ["Improve model finishing behavior if repeated runs continue to use the full action budget."],
                 })
 
             generated_diff = worktree_diff(worktree.path)

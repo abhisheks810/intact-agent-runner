@@ -16,6 +16,10 @@ def markdown_list(items, fallback: str = "None") -> str:
     return f"- {fallback}"
 
 
+def sanitize_markdown(content: str) -> str:
+    return "\n".join(line.rstrip() for line in content.splitlines()) + "\n"
+
+
 def is_write_permission_error(error: Exception) -> bool:
     return isinstance(error, OSError) and error.errno in {1, 13, 30}
 
@@ -24,7 +28,7 @@ def write_agent_run(config, run: dict) -> str:
     file_name = f"{stamp()}-{run['agent']}.md"
     primary_path = Path(config.mcp_server_root) / "data" / "agent-runs" / file_name
     fallback_path = Path(config.agent_runner_root) / "data" / "agent-runs" / file_name
-    content = "\n".join([
+    content = sanitize_markdown("\n".join([
         f"# Agent Run: {run['agent']}",
         "",
         f"Created: {datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}",
@@ -66,7 +70,7 @@ def write_agent_run(config, run: dict) -> str:
         "",
         markdown_list(run.get("blockers")),
         "",
-    ])
+    ]))
     try:
         write_text(primary_path, content)
         return str(primary_path)
@@ -81,7 +85,7 @@ def write_implementation_result(config, result: dict) -> str:
     file_name = f"{stamp()}-{result.get('slug') or result.get('agent') or 'map-platform-host-runner'}.md"
     primary_path = Path(config.mcp_server_root) / "data" / "map-platform-implementation-results" / file_name
     fallback_path = Path(config.agent_runner_root) / "data" / "map-platform-implementation-results" / file_name
-    content = "\n".join([
+    content = sanitize_markdown("\n".join([
         f"# Implementation Result: {result.get('title') or result.get('agent') or 'map-platform host runner'}",
         "",
         f"Created: {datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}",
@@ -103,7 +107,7 @@ def write_implementation_result(config, result: dict) -> str:
         "",
         markdown_list(result.get("blockers")),
         "",
-    ])
+    ]))
     try:
         write_text(primary_path, content)
         return str(primary_path)

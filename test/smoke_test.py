@@ -92,6 +92,7 @@ from intact_agent_runner.dashboard import collect_dashboard_state, render_dashbo
 from intact_agent_runner.repo_intelligence import build_repo_intelligence
 from intact_agent_runner.mcp_context import build_mcp_tool_context
 from intact_agent_runner.development_agent import build_inspection_followup_prompt, build_patch_repair_prompt, check_agent_patch, finalize_repo_paths, parse_inspect_command, validate_patch_paths
+from intact_agent_runner.run_log import sanitize_markdown
 from intact_agent_runner.tool_loop import run_tool_loop_implementation
 
 config = load_config()
@@ -166,6 +167,9 @@ followup_prompt = build_inspection_followup_prompt({"selectedSpec": {}, "context
 if "Inspection command outputs" not in followup_prompt or "backend/main.py" not in followup_prompt:
     raise RuntimeError("inspection follow-up prompt missing command output")
 
+if "trailing   \n" in sanitize_markdown("trailing   \nclean\n"):
+    raise RuntimeError("run-log markdown sanitizer did not strip trailing whitespace")
+
 class FakeToolProvider:
     name = "fake"
 
@@ -187,6 +191,29 @@ class FakeToolProvider:
         if self.index >= len(responses):
             raise RuntimeError("unexpected extra tool-loop call")
         value = responses[self.index]
+        self.index += 1
+        return {"text": __import__("json").dumps(value)}
+
+
+class FakeNoFinishProvider:
+    name = "fake"
+
+    def __init__(self, expected_sha):
+        self.expected_sha = expected_sha
+        self.index = 0
+
+    def complete(self, *, instructions, prompt):
+        change_request = re.search(r'map-platform-change-requests/[^"\s]+\.md', prompt)
+        responses = [
+            {"tool": "get_map_platform_file_metadata", "args": {"path": "README.md"}, "reason": "capture hash before scoped write"},
+            {"tool": "create_map_platform_change_request", "args": {"title": "No Finish Smoke", "agent": "qa-evaluation-agent", "objective": "Verify no-finish fallback.", "allowed_files": ["README.md"], "verification": ["run_map_platform_verify"], "approval_note": "Smoke test scoped write."}, "reason": "approve scoped write"},
+            {"tool": "write_map_platform_file", "args": {"path": "README.md", "content": "# Test map platform\n\nUpdated without explicit finish.\n", "expected_sha256": self.expected_sha, "change_request_path": change_request.group(0) if change_request else "map-platform-change-requests/missing.md", "approval_note": "Smoke test scoped write."}, "reason": "write through MCP"},
+            {"tool": "run_map_platform_verify", "args": {"timeout_ms": 10000}, "reason": "verify through MCP"},
+        ]
+        if self.index < len(responses):
+            value = responses[self.index]
+        else:
+            value = {"tool": "map_platform_git_diff", "args": {}, "reason": "inspect current generated diff"}
         self.index += 1
         return {"text": __import__("json").dumps(value)}
 
@@ -241,5 +268,46 @@ with tempfile.TemporaryDirectory(prefix="intact-runner-tool-loop-") as temp_root
     clean_check = subprocess.run(["git", "status", "--short"], cwd=repo, check=True, text=True, capture_output=True)
     if clean_check.stdout.strip():
         raise RuntimeError(f"scoped finalization left temp repo dirty: {clean_check.stdout}")
+
+with tempfile.TemporaryDirectory(prefix="intact-runner-tool-loop-no-finish-") as temp_root:
+    repo = Path(temp_root) / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-b", "main"], cwd=repo, check=True, text=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "runner@example.test"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Runner Test"], cwd=repo, check=True)
+    (repo / "scripts").mkdir()
+    (repo / "scripts" / "verify.sh").write_text("#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n", encoding="utf-8")
+    original_readme = "# Test map platform\n"
+    (repo / "README.md").write_text(original_readme, encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=repo, check=True, text=True, capture_output=True)
+    temp_mcp = Path(temp_root) / "mcp"
+    (temp_mcp / "src").mkdir(parents=True)
+    shutil.copyfile("/Users/abhisheksrivastava/intact-mcp-server/src/server.js", temp_mcp / "src" / "server.js")
+    fake_config = SimpleNamespace(
+        allowed_repo_roots={"map_platform": str(repo)},
+        mcp_server_root=str(temp_mcp),
+        map_platform_root=str(repo),
+        host_strategy_root=str(RUNTIME_HOST_STRATEGY_ROOT),
+    )
+    fake_plan = {
+        "selectedAgent": "qa-evaluation-agent",
+        "recommendedFocus": "structured tool-loop no-finish smoke",
+        "selectedSpec": {"spec": "test spec"},
+        "context": {
+            "strategySnippets": [],
+            "feedbackSnippets": [],
+            "tasks": [],
+            "implementationResults": [],
+            "repoIntelligence": {},
+            "mcpToolContext": {},
+        },
+    }
+    expected_sha = hashlib.sha256(original_readme.encode("utf-8")).hexdigest()
+    implementation = run_tool_loop_implementation(fake_config, FakeNoFinishProvider(expected_sha), fake_plan)
+    if not implementation["patch"]["applied"]:
+        raise RuntimeError("no-finish fallback did not apply verified generated diff")
+    if implementation["decision"]["blockers"]:
+        raise RuntimeError(f"no-finish fallback incorrectly reported blockers: {implementation['decision']['blockers']}")
 
 print("smoke test passed")
