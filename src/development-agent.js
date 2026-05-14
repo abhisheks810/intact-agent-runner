@@ -164,9 +164,11 @@ export async function runVerification(config, decision) {
   return { ok: true, results };
 }
 
-export async function finalizeRepos(config, commitMessage) {
+export async function finalizeRepos(config, commitMessage, { only = undefined, skip = [] } = {}) {
   const results = [];
   for (const [name, repoRoot] of Object.entries(config.allowedRepoRoots)) {
+    if (only && !only.includes(name)) continue;
+    if (skip.includes(name)) continue;
     const status = await runCommand("git", ["status", "--porcelain"], {
       cwd: repoRoot,
       timeoutMs: 30000,

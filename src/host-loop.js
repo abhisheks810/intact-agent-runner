@@ -90,11 +90,11 @@ export async function runHostMapPlatformLoop(config) {
   const verification = patch.applied
     ? await runVerification(config, decision)
     : { ok: decision.unifiedDiff.trim() ? false : true, results: [patch.summary] };
-  const finalization = patch.applied && verification.ok
-    ? await finalizeRepos(config, decision.commitMessage)
+  const targetFinalization = patch.applied && verification.ok
+    ? await finalizeRepos(config, decision.commitMessage, { only: [decision.targetRepo] })
     : { ok: true, results: ["No finalization attempted because no verified patch was applied."] };
 
-  const status = patch.applied && verification.ok && finalization.ok && decision.blockers.length === 0
+  const status = patch.applied && verification.ok && targetFinalization.ok && decision.blockers.length === 0
     ? "completed"
     : "completed_with_blockers";
   const run = {
@@ -117,19 +117,19 @@ export async function runHostMapPlatformLoop(config) {
     ],
     tasksConsidered: plan.context.tasks.map((task) => task.relative),
     changesMade: patch.applied ? decision.changedFiles : ["No repository files changed"],
-    artifactsWritten: [],
+    artifactsWritten: ["Agent-run artifact pending", "Implementation-result artifact pending"],
     verification: [
       commandSummary(preflight),
       ...(patch.commands || []),
       ...verification.results,
-      ...finalization.results,
+      ...targetFinalization.results,
     ],
     deferred: decision.deferred,
     blockers: [
       ...decision.blockers,
       ...(patch.applied ? [] : [patch.summary]),
       ...(verification.ok ? [] : ["Verification failed"]),
-      ...(finalization.ok ? [] : ["Git finalization failed"]),
+      ...(targetFinalization.ok ? [] : ["Target repository Git finalization failed"]),
     ].filter(Boolean),
   };
   const runPath = await writeAgentRun(config, run);
@@ -140,13 +140,19 @@ export async function runHostMapPlatformLoop(config) {
     status,
     summary: decision.summary,
     verification: run.verification,
-    gitFinalization: finalization.results,
+    gitFinalization: targetFinalization.results,
     blockers: run.blockers,
   });
+  const artifactFinalization = await finalizeRepos(
+    config,
+    `agent-run: record ${decision.agentRole} host loop artifacts`,
+    { skip: [decision.targetRepo] },
+  );
   return {
     ...run,
     runPath,
     resultPath,
+    artifactFinalization,
   };
 }
 
@@ -172,9 +178,15 @@ async function writeFailure(config, partial) {
     gitFinalization: ["Not attempted"],
     blockers: run.blockers,
   });
+  const artifactFinalization = await finalizeRepos(
+    config,
+    `agent-run: record failed ${run.agent} host loop artifacts`,
+    { only: ["intact-mcp-server"] },
+  );
   return {
     ...run,
     runPath,
     resultPath,
+    artifactFinalization,
   };
 }
