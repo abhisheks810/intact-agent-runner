@@ -17,7 +17,7 @@ OPENAI_MODEL=gpt-5.2
 Recommended local-only env file:
 
 ```text
-~/.config/intact-agent-runner/map-platform.env
+/Users/abhisheksrivastava/intact-agent-runner/.env
 ```
 
 Example:
@@ -29,7 +29,7 @@ export OPENAI_MODEL=gpt-5.2
 export COMMIT_AND_PUSH=1
 ```
 
-`scripts/run-map-platform-loop.sh` loads that file automatically when it exists.
+`scripts/run-map-platform-loop.sh` loads that file automatically when it exists. Set `INTACT_AGENT_RUNNER_ENV` if you want the wrapper to load a different local file.
 
 ## Policy
 

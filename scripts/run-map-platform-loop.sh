@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="/Users/abhisheksrivastava/intact-agent-runner"
 LOCK_DIR="/tmp/intact-map-platform-host-runner.lock"
 LOG_DIR="$ROOT/logs"
-ENV_FILE="${INTACT_AGENT_RUNNER_ENV:-$HOME/.config/intact-agent-runner/map-platform.env}"
+ENV_FILE="${INTACT_AGENT_RUNNER_ENV:-$ROOT/.env}"
 
 mkdir -p "$LOG_DIR"
 

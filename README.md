@@ -101,10 +101,10 @@ The launchd wrapper is:
 /Users/abhisheksrivastava/intact-agent-runner/scripts/run-map-platform-loop.sh
 ```
 
-It loads optional local environment from:
+It loads optional local environment from the repo-local ignored file:
 
 ```bash
-~/.config/intact-agent-runner/map-platform.env
+/Users/abhisheksrivastava/intact-agent-runner/.env
 ```
 
 Example local env file:
