@@ -1,18 +1,14 @@
 {
   "name": "intact-agent-runner",
   "version": "0.1.0",
-  "description": "Self-hosted agent runner for Intact product development agents.",
-  "type": "module",
+  "description": "Compatibility npm scripts for the Python-based Intact agent runner.",
   "private": true,
   "scripts": {
-    "start": "node src/cli.js run --product map-platform",
-    "run:map": "node src/cli.js run --product map-platform",
-    "host-run:map": "node src/cli.js host-run --product map-platform",
-    "plan:map": "node src/cli.js plan --product map-platform",
-    "test": "node test/smoke-test.js"
-  },
-  "engines": {
-    "node": ">=20"
+    "start": "python3 -m intact_agent_runner.cli run --product map-platform",
+    "run:map": "python3 -m intact_agent_runner.cli run --product map-platform",
+    "host-run:map": "python3 -m intact_agent_runner.cli host-run --product map-platform",
+    "plan:map": "python3 -m intact_agent_runner.cli plan --product map-platform",
+    "test": "PYTHONDONTWRITEBYTECODE=1 python3 test/smoke_test.py"
   },
   "license": "UNLICENSED"
 }

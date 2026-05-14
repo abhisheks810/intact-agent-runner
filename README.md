@@ -12,6 +12,7 @@ It is designed to sit between:
 ## Current Status
 
 This implementation is dependency-free and local-first by default.
+The runtime is a Python package under `intact_agent_runner/`. The `npm` scripts remain as compatibility shims for existing operator commands.
 
 It can:
 
@@ -50,25 +51,33 @@ map_platform
 ## Run
 
 ```bash
-npm start
+python3 -m intact_agent_runner.cli run --product map-platform
 ```
 
 Run one map-platform iteration:
 
 ```bash
-npm run run:map
+python3 -m intact_agent_runner.cli run --product map-platform
 ```
 
 Run the host-loop replacement for the old automation:
 
 ```bash
-npm run host-run:map
+python3 -m intact_agent_runner.cli host-run --product map-platform
 ```
 
 Show the plan without writing:
 
 ```bash
+python3 -m intact_agent_runner.cli plan --product map-platform
+```
+
+The existing compatibility commands still work:
+
+```bash
 npm run plan:map
+npm run run:map
+npm run host-run:map
 ```
 
 ## Environment
@@ -150,12 +159,12 @@ Dry-run orchestration:
 
 ```bash
 cd /Users/abhisheksrivastava/intact-agent-runner
-npm run run:map
+python3 -m intact_agent_runner.cli run --product map-platform
 ```
 
 Host-loop replacement:
 
 ```bash
 cd /Users/abhisheksrivastava/intact-agent-runner
-npm run host-run:map
+python3 -m intact_agent_runner.cli host-run --product map-platform
 ```

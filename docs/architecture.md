@@ -25,15 +25,15 @@ Future mode:
 
 | Component | Responsibility |
 | --- | --- |
-| `src/cli.js` | Command-line entrypoint. |
-| `src/runner.js` | Product runner and role orchestration. |
-| `src/host-loop.js` | Host-loop replacement for scheduled map-platform development. |
-| `src/development-agent.js` | Bounded OpenAI decision parsing, patch application, verification, and Git finalization. |
-| `src/commands.js` | Child-process wrapper used for preflight, verification, and Git commands. |
-| `src/agents.js` | Loads and selects agent specs. |
-| `src/context.js` | Reads tasks, feedback, proposals, results, and run logs. |
-| `src/llm.js` | Provider adapter boundary, including OpenAI Responses API. |
-| `src/run-log.js` | Writes agent run audit logs and implementation results. |
+| `intact_agent_runner/cli.py` | Command-line entrypoint. |
+| `intact_agent_runner/runner.py` | Product runner and role orchestration. |
+| `intact_agent_runner/host_loop.py` | Host-loop replacement for scheduled map-platform development. |
+| `intact_agent_runner/development_agent.py` | Bounded OpenAI decision parsing, patch application, verification, and Git finalization. |
+| `intact_agent_runner/commands.py` | Child-process wrapper used for preflight, verification, and Git commands. |
+| `intact_agent_runner/agents.py` | Loads and selects agent specs. |
+| `intact_agent_runner/context.py` | Reads tasks, feedback, proposals, results, and run logs. |
+| `intact_agent_runner/llm.py` | Provider adapter boundary, including OpenAI Responses API. |
+| `intact_agent_runner/run_log.py` | Writes agent run audit logs and implementation results. |
 
 ## Why This Exists Beside Codex
 
@@ -44,7 +44,7 @@ Target relationship:
 ```text
 launchd at :00/:20/:40
   -> scripts/run-map-platform-loop.sh
-      -> npm run host-run:map
+      -> python3 -m intact_agent_runner.cli host-run --product map-platform
           -> canonical preflight
           -> OpenAI-backed bounded agent
           -> product repo verification

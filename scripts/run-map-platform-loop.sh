@@ -31,4 +31,4 @@ export AUTOMATION_ID="${AUTOMATION_ID:-intact-agent-runner-launchd-map-platform}
 export COMMIT_AND_PUSH="${COMMIT_AND_PUSH:-1}"
 
 cd "$ROOT"
-exec node src/cli.js host-run --product map-platform
+exec python3 -m intact_agent_runner.cli host-run --product map-platform

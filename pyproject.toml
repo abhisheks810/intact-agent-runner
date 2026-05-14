@@ -1,0 +1,11 @@
+[project]
+name = "intact-agent-runner"
+version = "0.1.0"
+description = "Self-hosted agent runner for Intact product development agents."
+requires-python = ">=3.9"
+
+[project.scripts]
+intact-agent-runner = "intact_agent_runner.cli:main"
+
+[tool.setuptools]
+packages = ["intact_agent_runner"]
