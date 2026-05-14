@@ -72,9 +72,29 @@ def development_instructions() -> str:
 
 def parse_agent_decision(text: str) -> dict:
     try:
-        return normalize_decision(json.loads(text))
+        return normalize_decision(load_decision_json(text))
     except Exception as error:
         raise RuntimeError(f"Agent response was not valid JSON: {error}\n{text[:1200]}") from error
+
+
+def load_decision_json(text: str) -> dict:
+    decoder = json.JSONDecoder()
+    stripped = text.strip()
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        pass
+
+    for index, char in enumerate(stripped):
+        if char != "{":
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(stripped[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    raise json.JSONDecodeError("No JSON object found", stripped, 0)
 
 
 def normalize_decision(decision: dict) -> dict:

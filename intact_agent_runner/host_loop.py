@@ -68,25 +68,42 @@ def run_host_map_platform_loop(config) -> dict:
 
     plan = plan_map_platform(config)
     provider = get_provider(config)
-    completion = provider.complete(
-        instructions=development_instructions(),
-        prompt=build_development_prompt(plan, config),
-    )
-    if provider.name == "none":
-        decision = {
-            "agentRole": plan["selectedAgent"],
-            "selectedTask": plan["recommendedFocus"],
-            "targetRepo": "map_platform",
-            "summary": "Dry-run provider selected the next task but did not propose a patch.",
-            "unifiedDiff": "",
-            "changedFiles": [],
-            "verification": ["Plan generation completed"],
-            "commitMessage": "agent-run: map-platform host iteration",
-            "deferred": ["Enable LLM_PROVIDER=openai for implementation patches"],
-            "blockers": ["No LLM provider configured; no development patch was generated"],
-        }
-    else:
-        decision = parse_agent_decision(completion["text"])
+    try:
+        completion = provider.complete(
+            instructions=development_instructions(),
+            prompt=build_development_prompt(plan, config),
+        )
+        if provider.name == "none":
+            decision = {
+                "agentRole": plan["selectedAgent"],
+                "selectedTask": plan["recommendedFocus"],
+                "targetRepo": "map_platform",
+                "summary": "Dry-run provider selected the next task but did not propose a patch.",
+                "unifiedDiff": "",
+                "changedFiles": [],
+                "verification": ["Plan generation completed"],
+                "commitMessage": "agent-run: map-platform host iteration",
+                "deferred": ["Enable LLM_PROVIDER=openai for implementation patches"],
+                "blockers": ["No LLM provider configured; no development patch was generated"],
+            }
+        else:
+            decision = parse_agent_decision(completion["text"])
+    except Exception as error:
+        return write_failure(config, {
+            "agent": plan["selectedAgent"],
+            "status": "failed",
+            "summary": "Host runner stopped while requesting or parsing the development-agent decision.",
+            "inputsRead": [
+                "host_strategy README.md and docs/",
+                "data/agent-specs/map-platform/",
+                "data/map-platform-tasks/",
+                "data/map-platform-implementation-results/",
+                "git status for all allowed repos",
+                "canonical loop preflight",
+            ],
+            "verification": [command_summary(preflight)],
+            "blockers": [str(error)],
+        })
 
     patch = apply_agent_patch(config, decision)
     verification = (
