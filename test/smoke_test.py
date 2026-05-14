@@ -58,7 +58,7 @@ from intact_agent_runner.config import load_config
 from intact_agent_runner.dashboard import collect_dashboard_state, render_dashboard_html
 from intact_agent_runner.repo_intelligence import build_repo_intelligence
 from intact_agent_runner.mcp_context import build_mcp_tool_context
-from intact_agent_runner.development_agent import build_patch_repair_prompt, check_agent_patch, validate_patch_paths
+from intact_agent_runner.development_agent import build_inspection_followup_prompt, build_patch_repair_prompt, check_agent_patch, parse_inspect_command, validate_patch_paths
 from intact_agent_runner.host_loop import repair_until_patch_checks
 
 config = load_config()
@@ -165,5 +165,16 @@ if repaired["unifiedDiff"] != good_decision["unifiedDiff"]:
     raise RuntimeError("patch repair did not return corrected diff")
 if not any("Patch validation attempt 2" in item for item in attempts):
     raise RuntimeError("patch repair attempts did not record second validation")
+
+
+if not parse_inspect_command("rg route backend/routers/route.py")["ok"]:
+    raise RuntimeError("safe rg inspect command was blocked")
+if parse_inspect_command("git add README.md")["ok"]:
+    raise RuntimeError("write git command was allowed")
+if parse_inspect_command("rg route backend | cat")["ok"]:
+    raise RuntimeError("shell pipeline was allowed")
+followup_prompt = build_inspection_followup_prompt({"selectedSpec": {}, "context": {"repoIntelligence": {}, "mcpToolContext": {}}}, repaired, ["$ rg route backend/main.py\nbackend/main.py:21 route"] )
+if "Inspection command outputs" not in followup_prompt or "backend/main.py" not in followup_prompt:
+    raise RuntimeError("inspection follow-up prompt missing command output")
 
 print("smoke test passed")

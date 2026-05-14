@@ -26,6 +26,9 @@ It can:
 - call the OpenAI Responses API when `LLM_PROVIDER=openai`;
 - validate every proposed unified diff with `git apply --check`;
 - request a corrected diff when patch validation fails, then re-check before applying;
+- let the agent request bounded read-only inspect commands before or during repair;
+- retry verification failures with incremental repair diffs before giving up;
+- roll back unverified patches so failed runs do not dirty product repos;
 - apply a bounded unified diff from the selected agent;
 - run repo-local verification;
 - commit and push verified changes when `COMMIT_AND_PUSH=1`;

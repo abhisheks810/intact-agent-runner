@@ -17,6 +17,7 @@ def build_development_prompt(plan: dict, config) -> str:
         "summary": "what the run should do",
         "unified_diff": "",
         "changed_files": [],
+        "inspect_commands": [],
         "verification": [],
         "commit_message": "agent-run: map-platform host iteration",
         "deferred": [],
@@ -73,6 +74,8 @@ def development_instructions() -> str:
         "You are a senior development agent operating under a host-runner policy.",
         "You may propose a unified diff only for allowlisted repositories and only for the selected small task.",
         "Before returning a patch, mentally validate that it is a complete unified diff accepted by git apply --check.",
+        "You may request bounded read-only inspect commands in inspect_commands when source context is insufficient.",
+        "Do not request write commands; all edits must be returned as unified_diff.",
         "Keep patches minimal and reviewable.",
         "Do not include markdown fences around JSON.",
     ])
@@ -86,6 +89,7 @@ def build_patch_repair_prompt(plan: dict, decision: dict, patch_result: dict) ->
         "summary": decision["summary"],
         "unified_diff": "complete corrected unified diff, or empty string if no safe fix is possible",
         "changed_files": decision["changedFiles"],
+        "inspect_commands": [],
         "verification": decision["verification"],
         "commit_message": decision["commitMessage"],
         "deferred": decision["deferred"],
@@ -116,6 +120,84 @@ def build_patch_repair_prompt(plan: dict, decision: dict, patch_result: dict) ->
         decision.get("unifiedDiff", ""),
     ])
 
+
+
+
+def build_inspection_followup_prompt(plan: dict, decision: dict, inspect_results: list[str]) -> str:
+    shape = {
+        "agent_role": decision["agentRole"],
+        "selected_task": decision["selectedTask"],
+        "target_repo": decision["targetRepo"],
+        "summary": decision["summary"],
+        "unified_diff": "complete repo-relative unified diff, or empty string if no safe implementation is possible",
+        "changed_files": decision["changedFiles"],
+        "inspect_commands": [],
+        "verification": decision["verification"],
+        "commit_message": decision["commitMessage"],
+        "deferred": decision["deferred"],
+        "blockers": [],
+    }
+    return "\n".join([
+        "You requested read-only CLI inspection before implementation.",
+        "Use the command outputs below to return a concrete implementation patch.",
+        "Return only JSON. Do not include markdown fences or text outside JSON.",
+        "All edits must be in unified_diff; do not request write commands.",
+        "If no safe implementation is possible, set unified_diff to an empty string and explain the blocker.",
+        "",
+        "Required JSON shape:",
+        json.dumps(shape, indent=2),
+        "",
+        "Selected agent spec:",
+        (plan.get("selectedSpec") or {}).get("spec") or "Unavailable",
+        "",
+        "Repository intelligence packet:",
+        json.dumps(plan["context"].get("repoIntelligence", {}), indent=2),
+        "",
+        "MCP stdio tool context:",
+        json.dumps(plan["context"].get("mcpToolContext", {}), indent=2),
+        "",
+        "Inspection command outputs:",
+        "\n\n---\n\n".join(inspect_results),
+    ])
+
+def build_verification_repair_prompt(plan: dict, decision: dict, verification: dict, current_diff: str) -> str:
+    shape = {
+        "agent_role": decision["agentRole"],
+        "selected_task": decision["selectedTask"],
+        "target_repo": decision["targetRepo"],
+        "summary": decision["summary"],
+        "unified_diff": "incremental unified diff to fix verification, or empty string if no safe fix is possible",
+        "changed_files": decision["changedFiles"],
+        "inspect_commands": [],
+        "verification": decision["verification"],
+        "commit_message": decision["commitMessage"],
+        "deferred": decision["deferred"],
+        "blockers": [],
+    }
+    return "\n".join([
+        "A previous patch applied, but repository verification failed.",
+        "Return only JSON with an incremental repo-relative unified_diff that fixes the failure on top of the current working tree.",
+        "You may request read-only inspect_commands if the failure needs more source context.",
+        "If no safe fix is possible, set unified_diff to an empty string and explain the blocker.",
+        "",
+        "Required JSON shape:",
+        json.dumps(shape, indent=2),
+        "",
+        "Selected agent spec:",
+        (plan.get("selectedSpec") or {}).get("spec") or "Unavailable",
+        "",
+        "Repository intelligence packet:",
+        json.dumps(plan["context"].get("repoIntelligence", {}), indent=2),
+        "",
+        "MCP stdio tool context:",
+        json.dumps(plan["context"].get("mcpToolContext", {}), indent=2),
+        "",
+        "Verification failure:",
+        "\n\n".join(verification.get("results", [])),
+        "",
+        "Current uncommitted diff:",
+        current_diff,
+    ])
 
 def parse_agent_decision(text: str) -> dict:
     try:
@@ -155,6 +237,7 @@ def normalize_decision(decision: dict) -> dict:
         "summary": decision.get("summary") or "No summary returned by agent.",
         "unifiedDiff": decision.get("unified_diff") or "",
         "changedFiles": decision.get("changed_files") if isinstance(decision.get("changed_files"), list) else [],
+        "inspectCommands": decision.get("inspect_commands") if isinstance(decision.get("inspect_commands"), list) else [],
         "verification": decision.get("verification") if isinstance(decision.get("verification"), list) else [],
         "commitMessage": decision.get("commit_message") or "agent-run: map-platform host iteration",
         "deferred": decision.get("deferred") if isinstance(decision.get("deferred"), list) else [],
@@ -287,6 +370,76 @@ def run_verification(config, decision: dict) -> dict:
             return {"ok": False, "results": results}
     return {"ok": True, "results": results}
 
+
+
+READ_ONLY_COMMANDS = {
+    "git": {"status", "diff", "show", "log", "ls-files"},
+    "rg": None,
+    "sed": None,
+    "find": None,
+    "python3": {"-m"},
+    "bash": {"./scripts/verify.sh", "./scripts/loop-preflight.sh"},
+    "npm": {"test", "run"},
+}
+
+
+def run_inspect_commands(config, decision: dict, limit: int = 5) -> list[str]:
+    outputs = []
+    repo_root = config.allowed_repo_roots[decision["targetRepo"]]
+    for raw in decision.get("inspectCommands", [])[:limit]:
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        parsed = parse_inspect_command(raw)
+        if not parsed["ok"]:
+            outputs.append(f"$ {raw}\nblocked: {parsed['error']}")
+            continue
+        result = run_command(parsed["command"], parsed["args"], cwd=repo_root, timeout_ms=120000)
+        outputs.append(command_summary(result))
+    return outputs
+
+
+def parse_inspect_command(raw: str) -> dict:
+    import shlex
+
+    try:
+        parts = shlex.split(raw)
+    except ValueError as error:
+        return {"ok": False, "error": str(error)}
+    if not parts:
+        return {"ok": False, "error": "empty command"}
+    if any(token in raw for token in [";", "&&", "||", "|", ">", "<", "`", "$("]):
+        return {"ok": False, "error": "shell operators are not allowed"}
+    command, args = parts[0], parts[1:]
+    allowed = READ_ONLY_COMMANDS.get(command)
+    if command not in READ_ONLY_COMMANDS:
+        return {"ok": False, "error": f"command not allowlisted: {command}"}
+    if allowed is not None:
+        first = args[0] if args else ""
+        if first not in allowed:
+            return {"ok": False, "error": f"subcommand not allowlisted for {command}: {first}"}
+    blocked_tokens = {"add", "commit", "push", "pull", "fetch", "checkout", "reset", "clean", "apply", "rm", "mv", "install"}
+    if any(arg in blocked_tokens for arg in args):
+        return {"ok": False, "error": "write or network subcommand is not allowed"}
+    return {"ok": True, "command": command, "args": args}
+
+
+def current_repo_diff(config, target_repo: str) -> str:
+    result = run_command("git", ["diff", "--binary"], cwd=config.allowed_repo_roots[target_repo], timeout_ms=60000)
+    return result.stdout if result.ok else command_summary(result)
+
+
+def rollback_uncommitted_changes(config, target_repo: str) -> dict:
+    repo_root = config.allowed_repo_roots[target_repo]
+    diff = run_command("git", ["diff", "--binary"], cwd=repo_root, timeout_ms=60000)
+    if not diff.ok:
+        return {"ok": False, "summary": f"Failed to capture rollback diff.\n{command_summary(diff)}"}
+    if not diff.stdout.strip():
+        return {"ok": True, "summary": "No uncommitted diff to roll back."}
+    reverse = run_command("git", ["apply", "-R", "--whitespace=nowarn", "-"], cwd=repo_root, input_text=diff.stdout, timeout_ms=60000)
+    return {
+        "ok": reverse.ok,
+        "summary": "Rolled back unverified patch." if reverse.ok else f"Rollback failed.\n{command_summary(reverse)}",
+    }
 
 def finalize_repos(config, commit_message: str, *, only: list[str] | None = None, skip: list[str] | None = None) -> dict:
     skip = skip or []

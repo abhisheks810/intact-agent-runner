@@ -12,6 +12,8 @@ Current mode:
 - mandatory host-context preflight;
 - OpenAI-backed bounded patch generation;
 - deterministic patch validation plus bounded LLM repair retries before applying;
+- bounded read-only CLI inspection and verification-repair retries;
+- rollback of unverified patches before writing failed-run artifacts;
 - read-only `intact-mcp-server` stdio tool calls for map-platform context and doctors;
 - repo-local verification;
 - commit-and-push finalization.
@@ -98,3 +100,7 @@ The host runner now starts `/Users/abhisheksrivastava/intact-mcp-server/src/serv
 ## Patch Validation
 
 Every non-empty agent diff is validated with path-policy checks and `git apply --check --whitespace=nowarn` before it can touch a repository. If validation fails and the provider is OpenAI-backed, the runner sends the exact failure and previous diff back for a bounded repair attempt, then repeats validation. A patch is applied only after a passing validation result; otherwise the run records the exact blocker and leaves product repos unchanged.
+
+## Exhaustive Development Loop
+
+The host loop now treats an agent implementation as a bounded cycle rather than a single diff. The agent may request allowlisted read-only inspect commands such as `rg`, `find`, `sed`, safe `git status/diff/show/log/ls-files`, `npm test`, and repo verification scripts. All writes still flow through unified diffs. The runner validates a diff, applies it, runs verification, and if verification fails it sends the exact output plus current uncommitted diff back for an incremental repair. If the repair budget is exhausted, the runner reverses its own unverified diff before recording the blocker so scheduled runs continue from clean repos.
