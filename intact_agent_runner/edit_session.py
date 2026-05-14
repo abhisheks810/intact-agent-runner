@@ -112,6 +112,26 @@ class EditSession:
                 break
         return self.record("list_files", True, "\n".join(sorted(files)), {"files": sorted(files)})
 
+    def list_dir(self, path: str = ".", *, limit: int = 120) -> ToolResult:
+        try:
+            absolute = self.absolute_path(path or ".")
+            if not absolute.exists():
+                return self.record("list_dir", False, f"{path or '.'} does not exist")
+            if not absolute.is_dir():
+                return self.record("list_dir", False, f"{path or '.'} is not a directory")
+            entries = []
+            for child in sorted(absolute.iterdir(), key=lambda item: item.name):
+                relative = child.relative_to(self.repo_root)
+                if any(part in BLOCKED_PATH_PARTS for part in relative.parts):
+                    continue
+                suffix = "/" if child.is_dir() else ""
+                entries.append(relative.as_posix() + suffix)
+                if len(entries) >= limit:
+                    break
+            return self.record("list_dir", True, "\n".join(entries) if entries else "No entries", {"entries": entries})
+        except Exception as error:
+            return self.record("list_dir", False, str(error))
+
     def read_file(self, path: str, *, max_chars: int = 12000) -> ToolResult:
         try:
             absolute = self.absolute_path(path)

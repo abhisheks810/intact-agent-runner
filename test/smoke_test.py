@@ -180,6 +180,9 @@ with tempfile.TemporaryDirectory(prefix="intact-runner-edit-session-") as temp_r
         raise RuntimeError(f"edit session rejected valid scoped write: {write.output}")
     if session.write_file_full("../escape.md", "bad\n").ok:
         raise RuntimeError("edit session allowed path escape")
+    listed = session.list_dir(".")
+    if not listed.ok or "README.md" not in listed.output:
+        raise RuntimeError("edit session list_dir did not list safe directory contents")
 
 
 class FakeToolProvider:
@@ -187,6 +190,7 @@ class FakeToolProvider:
 
     def __init__(self):
         self.responses = [
+            {"tool": "list_dir", "args": {"path": "docs"}, "reason": "inspect docs directory"},
             {"tool": "add_file", "args": {"path": "docs/agent-smoke.md", "content": "# Agent smoke\n\nGenerated through structured tools.\n"}, "reason": "add a small doc"},
             {"tool": "finish", "args": {"summary": "Added a structured tool-loop smoke doc.", "changed_files": ["docs/agent-smoke.md"], "verification": ["verify.sh"], "commit_message": "agent-run: structured tool loop smoke", "deferred": [], "blockers": []}, "reason": "done"},
         ]

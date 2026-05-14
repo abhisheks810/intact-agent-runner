@@ -19,6 +19,7 @@ MAX_ACTION_ROUNDS = 12
 
 ALLOWED_TOOLS = [
     "list_files",
+    "list_dir",
     "read_file",
     "search",
     "git_status",
@@ -75,6 +76,7 @@ def initial_tool_prompt(plan: dict) -> str:
         "Choose the next tool action for a bounded map-platform development run.",
         "Priority order: dev-interface reliability, place detail/local discovery, accessibility metadata, QA/evaluation, custom routing, documentation.",
         "Allowed tools: " + ", ".join(ALLOWED_TOOLS),
+        "Use list_dir for a single directory and list_files for a repository-wide file list.",
         "",
         "Action shape:",
         json.dumps(shape, indent=2),
@@ -253,6 +255,8 @@ def execute_tool_action(config, session: EditSession, action: dict, target_repo:
     args = action["args"]
     if tool == "list_files":
         return session.list_files(limit=int(args.get("limit") or 220))
+    if tool == "list_dir":
+        return session.list_dir(str(args.get("path") or "."), limit=int(args.get("limit") or 120))
     if tool == "read_file":
         return session.read_file(str(args.get("path") or ""))
     if tool == "search":
