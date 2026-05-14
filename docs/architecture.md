@@ -11,6 +11,7 @@ Current mode:
 - run-log creation;
 - mandatory host-context preflight;
 - OpenAI-backed bounded patch generation;
+- deterministic patch validation plus bounded LLM repair retries before applying;
 - read-only `intact-mcp-server` stdio tool calls for map-platform context and doctors;
 - repo-local verification;
 - commit-and-push finalization.
@@ -75,3 +76,7 @@ The wrapper uses `/tmp/intact-map-platform-host-runner.lock` to prevent overlapp
 ## MCP Stdio Context
 
 The host runner now starts `/Users/abhisheksrivastava/intact-mcp-server/src/server.js` over MCP stdio during context loading. It keeps `MAP_PLATFORM_WRITE_ENABLED=false` and calls only read-only/context tools by default: `tools/list`, `map_platform_git_status`, `list_map_platform_files`, `search_map_platform`, `read_map_platform_file`, and dry-run map-platform doctor tools. If MCP stdio is unavailable, the runner records the MCP context as unavailable and continues with direct filesystem context instead of crashing the scheduled loop.
+
+## Patch Validation
+
+Every non-empty agent diff is validated with path-policy checks and `git apply --check --whitespace=nowarn` before it can touch a repository. If validation fails and the provider is OpenAI-backed, the runner sends the exact failure and previous diff back for a bounded repair attempt, then repeats validation. A patch is applied only after a passing validation result; otherwise the run records the exact blocker and leaves product repos unchanged.

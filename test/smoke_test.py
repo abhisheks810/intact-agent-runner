@@ -57,7 +57,8 @@ except RuntimeError as error:
 from intact_agent_runner.config import load_config
 from intact_agent_runner.repo_intelligence import build_repo_intelligence
 from intact_agent_runner.mcp_context import build_mcp_tool_context
-from intact_agent_runner.development_agent import validate_patch_paths
+from intact_agent_runner.development_agent import build_patch_repair_prompt, check_agent_patch, validate_patch_paths
+from intact_agent_runner.host_loop import repair_until_patch_checks
 
 config = load_config()
 intelligence = build_repo_intelligence(config)
@@ -86,5 +87,77 @@ good_decision = {
 }
 if validate_patch_paths(config, good_decision):
     raise RuntimeError("valid repo-relative patch path was rejected")
+
+check = check_agent_patch(config, good_decision)
+if not check["ok"]:
+    raise RuntimeError("valid patch did not pass git apply --check")
+repair_prompt = build_patch_repair_prompt({"selectedSpec": {}, "context": {"repoIntelligence": {}, "mcpToolContext": {}}}, {
+    "agentRole": "qa-evaluation-agent",
+    "selectedTask": "test",
+    "targetRepo": "map_platform",
+    "summary": "test",
+    "unifiedDiff": "bad",
+    "changedFiles": [],
+    "verification": [],
+    "commitMessage": "test",
+    "deferred": [],
+    "blockers": [],
+}, {"summary": "Patch check failed"})
+if "corrected JSON" not in repair_prompt or "Patch validation failure" not in repair_prompt:
+    raise RuntimeError("patch repair prompt missing required guidance")
+
+
+class FakeRepairProvider:
+    name = "fake"
+
+    def __init__(self, repaired_text):
+        self.repaired_text = repaired_text
+        self.calls = 0
+
+    def complete(self, *, instructions, prompt):
+        self.calls += 1
+        if "Patch validation failure" not in prompt:
+            raise RuntimeError("repair prompt did not include validation failure")
+        return {"text": self.repaired_text}
+
+
+initial_bad_decision = {
+    "agentRole": "qa-evaluation-agent",
+    "selectedTask": "repair test",
+    "targetRepo": "map_platform",
+    "summary": "repair test",
+    "unifiedDiff": "diff --git a/docs/bad.md b/docs/bad.md\n@@ -1 +1 @@\n+bad\n",
+    "changedFiles": ["docs/good.md"],
+    "verification": [],
+    "commitMessage": "test",
+    "deferred": [],
+    "blockers": [],
+}
+repaired_json = {
+    "agent_role": "qa-evaluation-agent",
+    "selected_task": "repair test",
+    "target_repo": "map_platform",
+    "summary": "repair test",
+    "unified_diff": good_decision["unifiedDiff"],
+    "changed_files": ["docs/good.md"],
+    "verification": [],
+    "commit_message": "test",
+    "deferred": [],
+    "blockers": [],
+}
+provider = FakeRepairProvider(__import__("json").dumps(repaired_json))
+repaired, attempts = repair_until_patch_checks(
+    config,
+    provider,
+    {"selectedSpec": {}, "context": {"repoIntelligence": {}, "mcpToolContext": {}}},
+    initial_bad_decision,
+    max_repairs=1,
+)
+if provider.calls != 1:
+    raise RuntimeError("patch repair provider was not called exactly once")
+if repaired["unifiedDiff"] != good_decision["unifiedDiff"]:
+    raise RuntimeError("patch repair did not return corrected diff")
+if not any("Patch validation attempt 2" in item for item in attempts):
+    raise RuntimeError("patch repair attempts did not record second validation")
 
 print("smoke test passed")

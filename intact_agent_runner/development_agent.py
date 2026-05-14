@@ -72,8 +72,48 @@ def development_instructions() -> str:
     return "\n".join([
         "You are a senior development agent operating under a host-runner policy.",
         "You may propose a unified diff only for allowlisted repositories and only for the selected small task.",
+        "Before returning a patch, mentally validate that it is a complete unified diff accepted by git apply --check.",
         "Keep patches minimal and reviewable.",
         "Do not include markdown fences around JSON.",
+    ])
+
+
+def build_patch_repair_prompt(plan: dict, decision: dict, patch_result: dict) -> str:
+    shape = {
+        "agent_role": decision["agentRole"],
+        "selected_task": decision["selectedTask"],
+        "target_repo": decision["targetRepo"],
+        "summary": decision["summary"],
+        "unified_diff": "complete corrected unified diff, or empty string if no safe fix is possible",
+        "changed_files": decision["changedFiles"],
+        "verification": decision["verification"],
+        "commit_message": decision["commitMessage"],
+        "deferred": decision["deferred"],
+        "blockers": [],
+    }
+    return "\n".join([
+        "The previous development-agent response proposed a patch that failed deterministic validation.",
+        "Return only corrected JSON with the same shape. Do not include markdown fences or explanatory text outside JSON.",
+        "The unified_diff must be a complete repo-relative unified diff that would pass git apply --check.",
+        "If you cannot produce a valid patch, set unified_diff to an empty string and put the reason in blockers.",
+        "",
+        "Required JSON shape:",
+        json.dumps(shape, indent=2),
+        "",
+        "Selected agent spec:",
+        (plan.get("selectedSpec") or {}).get("spec") or "Unavailable",
+        "",
+        "Repository intelligence packet:",
+        json.dumps(plan["context"].get("repoIntelligence", {}), indent=2),
+        "",
+        "MCP stdio tool context:",
+        json.dumps(plan["context"].get("mcpToolContext", {}), indent=2),
+        "",
+        "Patch validation failure:",
+        patch_result.get("summary", "Unknown patch failure"),
+        "",
+        "Previous invalid unified_diff:",
+        decision.get("unifiedDiff", ""),
     ])
 
 
@@ -171,15 +211,16 @@ def strip_diff_prefix(path: str) -> str:
         return path[2:]
     return path
 
-def apply_agent_patch(config, decision: dict) -> dict:
+def check_agent_patch(config, decision: dict) -> dict:
     if not decision["unifiedDiff"].strip():
-        return {"applied": False, "summary": "No patch proposed by agent.", "commands": []}
+        return {"ok": False, "summary": "No patch proposed by agent.", "commands": [], "repairable": False}
     path_errors = validate_patch_paths(config, decision)
     if path_errors:
         return {
-            "applied": False,
+            "ok": False,
             "summary": "Patch path validation failed.\n" + "\n".join(path_errors),
             "commands": [],
+            "repairable": True,
         }
     repo_root = config.allowed_repo_roots[decision["targetRepo"]]
     check = run_command(
@@ -191,10 +232,19 @@ def apply_agent_patch(config, decision: dict) -> dict:
     )
     if not check.ok:
         return {
-            "applied": False,
+            "ok": False,
             "summary": f"Patch check failed.\n{command_summary(check)}",
             "commands": [command_summary(check)],
+            "repairable": True,
         }
+    return {"ok": True, "summary": "Patch check passed.", "commands": [command_summary(check)], "repairable": False}
+
+
+def apply_agent_patch(config, decision: dict) -> dict:
+    check = check_agent_patch(config, decision)
+    if not check["ok"]:
+        return {"applied": False, "summary": check["summary"], "commands": check["commands"]}
+    repo_root = config.allowed_repo_roots[decision["targetRepo"]]
     apply = run_command(
         "git",
         ["apply", "--whitespace=nowarn", "-"],
@@ -205,7 +255,7 @@ def apply_agent_patch(config, decision: dict) -> dict:
     return {
         "applied": apply.ok,
         "summary": "Patch applied." if apply.ok else f"Patch apply failed.\n{command_summary(apply)}",
-        "commands": [command_summary(check), command_summary(apply)],
+        "commands": [*check["commands"], command_summary(apply)],
     }
 
 

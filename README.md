@@ -24,6 +24,8 @@ It can:
 - run in dry-run mode without API keys;
 - run the mandatory map-platform preflight from host context;
 - call the OpenAI Responses API when `LLM_PROVIDER=openai`;
+- validate every proposed unified diff with `git apply --check`;
+- request a corrected diff when patch validation fails, then re-check before applying;
 - apply a bounded unified diff from the selected agent;
 - run repo-local verification;
 - commit and push verified changes when `COMMIT_AND_PUSH=1`;
