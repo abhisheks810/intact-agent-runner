@@ -474,3 +474,40 @@ def finalize_repos(config, commit_message: str, *, only: list[str] | None = None
             if not push.ok:
                 return {"ok": False, "results": results}
     return {"ok": True, "results": results}
+
+
+def finalize_repo_paths(config, target_repo: str, commit_message: str, changed_paths: list[str]) -> dict:
+    repo_root = config.allowed_repo_roots[target_repo]
+    results = []
+    scoped_paths = [path for path in changed_paths if isinstance(path, str) and path.strip()]
+    if not scoped_paths:
+        return {"ok": True, "results": [f"{target_repo}: no scoped paths to finalize"]}
+
+    status = run_command("git", ["status", "--porcelain", "--", *scoped_paths], cwd=repo_root, timeout_ms=30000)
+    results.append(f"{target_repo}: {command_summary(status)}")
+    if not status.ok:
+        return {"ok": False, "results": results}
+    if not status.stdout.strip():
+        return {"ok": True, "results": [*results, f"{target_repo}: no changes in scoped paths"]}
+
+    add = run_command("git", ["add", "--", *scoped_paths], cwd=repo_root, timeout_ms=30000)
+    results.append(f"{target_repo}: {command_summary(add)}")
+    if not add.ok:
+        return {"ok": False, "results": results}
+
+    check = run_command("git", ["diff", "--cached", "--check"], cwd=repo_root, timeout_ms=30000)
+    results.append(f"{target_repo}: {command_summary(check)}")
+    if not check.ok:
+        return {"ok": False, "results": results}
+
+    commit = run_command("git", ["commit", "-m", commit_message], cwd=repo_root, timeout_ms=60000)
+    results.append(f"{target_repo}: {command_summary(commit)}")
+    if not commit.ok:
+        return {"ok": False, "results": results}
+
+    if config.commit_and_push:
+        push = run_command("git", ["push", "origin", "main"], cwd=repo_root, timeout_ms=120000)
+        results.append(f"{target_repo}: {command_summary(push)}")
+        if not push.ok:
+            return {"ok": False, "results": results}
+    return {"ok": True, "results": results}

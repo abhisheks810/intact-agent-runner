@@ -10,10 +10,11 @@ Current mode:
 - agent role selection;
 - run-log creation;
 - mandatory host-context preflight;
-- OpenAI-backed bounded patch generation;
-- deterministic patch validation plus bounded LLM repair retries before applying;
-- bounded read-only CLI inspection and verification-repair retries;
-- rollback of unverified patches before writing failed-run artifacts;
+- OpenAI-backed structured tool-loop development;
+- scoped file writes in an isolated temporary Git worktree;
+- deterministic generated-diff validation before canonical repo mutation;
+- repo-local verification before apply/commit;
+- scoped staging of agent-owned changed paths only;
 - read-only `intact-mcp-server` stdio tool calls for map-platform context and doctors;
 - repo-local verification;
 - commit-and-push finalization.
@@ -32,6 +33,9 @@ Future mode:
 | `intact_agent_runner/runner.py` | Product runner and role orchestration. |
 | `intact_agent_runner/host_loop.py` | Host-loop replacement for scheduled map-platform development. |
 | `intact_agent_runner/development_agent.py` | Bounded OpenAI decision parsing, patch application, verification, and Git finalization. |
+| `intact_agent_runner/tool_loop.py` | Structured model action loop for inspection, scoped writes, verification, generated diff capture, and diagnostics. |
+| `intact_agent_runner/edit_session.py` | Repo-relative path policy, read-before-write hash checks, changed-file limits, and tool action recording. |
+| `intact_agent_runner/worktree.py` | Temporary Git worktree creation, generated diff validation, canonical diff apply, verification, and cleanup. |
 | `intact_agent_runner/commands.py` | Child-process wrapper used for preflight, verification, and Git commands. |
 | `intact_agent_runner/agents.py` | Loads and selects agent specs. |
 | `intact_agent_runner/context.py` | Reads tasks, feedback, proposals, results, run logs, repo intelligence, and MCP tool context. |
@@ -53,9 +57,11 @@ launchd at :00/:20/:40
       -> python3 -m intact_agent_runner.cli host-run --product map-platform
           -> canonical preflight
           -> intact-mcp-server stdio context tools
-          -> OpenAI-backed bounded agent
+          -> OpenAI-backed structured tool-loop agent
+          -> isolated temporary map_platform worktree
+          -> generated Git diff validation
           -> product repo verification
-          -> commit/push
+          -> scoped-path commit/push
           -> MCP artifact logs
 ```
 
@@ -97,10 +103,10 @@ The dashboard exposes `/api/status` and `/api/artifact`. It reads the launchd jo
 
 The host runner now starts `/Users/abhisheksrivastava/intact-mcp-server/src/server.js` over MCP stdio during context loading. It keeps `MAP_PLATFORM_WRITE_ENABLED=false` and calls only read-only/context tools by default: `tools/list`, `map_platform_git_status`, `list_map_platform_files`, `search_map_platform`, `read_map_platform_file`, and dry-run map-platform doctor tools. If MCP stdio is unavailable, the runner records the MCP context as unavailable and continues with direct filesystem context instead of crashing the scheduled loop.
 
-## Patch Validation
+## Structured Tool Loop
 
-Every non-empty agent diff is validated with path-policy checks and `git apply --check --whitespace=nowarn` before it can touch a repository. If validation fails and the provider is OpenAI-backed, the runner sends the exact failure and previous diff back for a bounded repair attempt, then repeats validation. A patch is applied only after a passing validation result; otherwise the run records the exact blocker and leaves product repos unchanged.
+OpenAI-backed runs no longer ask the model to return a unified diff. The model returns one JSON tool action at a time from a bounded allowlist: list/read/search/status/diff, scoped full-file writes, verification, readonly commands, and finish. Existing files must be read before write, and writes include the current `sha256` so the runner can reject stale edits.
 
-## Exhaustive Development Loop
+All edits happen in a temporary Git worktree created from the canonical target repo. The runner generates the unified diff from Git, checks it with `git diff --check` and `git apply --check --whitespace=nowarn`, runs repo verification in the temporary worktree, then applies the generated diff to the canonical repo only after those gates pass. Git finalization stages only the changed paths returned by the generated diff.
 
-The host loop now treats an agent implementation as a bounded cycle rather than a single diff. The agent may request allowlisted read-only inspect commands such as `rg`, `find`, `sed`, safe `git status/diff/show/log/ls-files`, `npm test`, and repo verification scripts. All writes still flow through unified diffs. The runner validates a diff, applies it, runs verification, and if verification fails it sends the exact output plus current uncommitted diff back for an incremental repair. If the repair budget is exhausted, the runner reverses its own unverified diff before recording the blocker so scheduled runs continue from clean repos.
+Failed validation or verification leaves the canonical product repo unchanged. Run artifacts include the action log, generated diff, raw model responses, validation output, verification output, and cleanup/finalization status.
