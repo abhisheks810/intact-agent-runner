@@ -11,7 +11,7 @@ It is designed to sit between:
 
 ## Current Status
 
-This first implementation is dependency-free and local-first.
+This implementation is dependency-free and local-first by default.
 
 It can:
 
@@ -20,20 +20,24 @@ It can:
 - choose a runnable agent role;
 - create a structured agent run log (falls back to `AGENT_RUNNER_ROOT/data/agent-runs` when `MCP_SERVER_ROOT` is not writable);
 - run in dry-run mode without API keys;
-- provide a stable place to add LLM-backed execution later.
-
-It does **not** yet autonomously edit code through an LLM. That requires an API key and a provider adapter.
+- run the mandatory map-platform preflight from host context;
+- call the OpenAI Responses API when `LLM_PROVIDER=openai`;
+- apply a bounded unified diff from the selected agent;
+- run repo-local verification;
+- commit and push verified changes when `COMMIT_AND_PUSH=1`;
+- write both agent-run and implementation-result artifacts.
 
 ## Architecture
 
 ```text
-Codex automation / cron / manual command
+launchd / manual command
   -> intact-agent-runner
       -> loads agent specs from intact-mcp-server/data/agent-specs
       -> reads tasks/proposals/feedback/artifacts
-      -> optionally calls an LLM provider
-      -> writes agent run logs
-      -> later: calls MCP tools directly over stdio
+      -> runs canonical map_platform preflight
+      -> optionally calls OpenAI for a bounded patch
+      -> verifies, commits, and pushes
+      -> writes agent run logs and implementation results
 
 intact-mcp-server
   -> MCP tools/resources
@@ -55,6 +59,12 @@ Run one map-platform iteration:
 npm run run:map
 ```
 
+Run the host-loop replacement for the old automation:
+
+```bash
+npm run host-run:map
+```
+
 Show the plan without writing:
 
 ```bash
@@ -70,16 +80,50 @@ MCP_SERVER_ROOT=/Users/abhisheksrivastava/intact-mcp-server
 MAP_PLATFORM_ROOT=/Users/abhisheksrivastava/map_platform
 AGENT_RUNNER_ROOT=/Users/abhisheksrivastava/intact-agent-runner
 LLM_PROVIDER=none
+OPENAI_MODEL=gpt-5.2
+COMMIT_AND_PUSH=1
 ```
 
-Future provider examples:
+OpenAI-backed host-runner example:
 
 ```bash
 LLM_PROVIDER=openai
 OPENAI_API_KEY=...
 ```
 
-No API key is required for the current dry-run/local orchestration mode.
+No API key is required for dry-run/local orchestration mode.
+
+## Host Runner
+
+The launchd wrapper is:
+
+```bash
+/Users/abhisheksrivastava/intact-agent-runner/scripts/run-map-platform-loop.sh
+```
+
+It loads optional local environment from:
+
+```bash
+~/.config/intact-agent-runner/map-platform.env
+```
+
+Example local env file:
+
+```bash
+export LLM_PROVIDER=openai
+export OPENAI_API_KEY=...
+export OPENAI_MODEL=gpt-5.2
+export COMMIT_AND_PUSH=1
+```
+
+Install the LaunchAgent:
+
+```bash
+cd /Users/abhisheksrivastava/intact-agent-runner
+bash scripts/install-launchd-map-platform-loop.sh
+```
+
+The LaunchAgent runs at minutes `:00`, `:20`, and `:40`. Local stdout/stderr logs are written under `logs/`, which is ignored by Git.
 
 ## Agent Roles
 
@@ -100,13 +144,18 @@ Current roles:
 - qa-evaluation-agent
 - platform-infra-agent
 
-## Next Integration Step
+## Manual Smoke Commands
 
-The next step is to make Codex automations call:
+Dry-run orchestration:
 
 ```bash
 cd /Users/abhisheksrivastava/intact-agent-runner
 npm run run:map
 ```
 
-instead of directly acting as the whole orchestrator.
+Host-loop replacement:
+
+```bash
+cd /Users/abhisheksrivastava/intact-agent-runner
+npm run host-run:map
+```

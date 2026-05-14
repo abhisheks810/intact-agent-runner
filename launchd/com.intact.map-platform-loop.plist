@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.intact.map-platform-loop</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>/Users/abhisheksrivastava/intact-agent-runner/scripts/run-map-platform-loop.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/abhisheksrivastava/intact-agent-runner</string>
+
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict>
+      <key>Minute</key>
+      <integer>0</integer>
+    </dict>
+    <dict>
+      <key>Minute</key>
+      <integer>20</integer>
+    </dict>
+    <dict>
+      <key>Minute</key>
+      <integer>40</integer>
+    </dict>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/Users/abhisheksrivastava/intact-agent-runner/logs/map-platform-loop.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/abhisheksrivastava/intact-agent-runner/logs/map-platform-loop.err.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

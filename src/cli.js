@@ -2,6 +2,7 @@
 import process from "node:process";
 
 import { loadConfig } from "./config.js";
+import { runHostMapPlatformLoop } from "./host-loop.js";
 import { planMapPlatform, runMapPlatform } from "./runner.js";
 
 
@@ -38,6 +39,19 @@ async function main() {
       agent: result.agent,
       status: result.status,
       runPath: result.runPath,
+      summary: result.summary,
+      blockers: result.blockers,
+    }, null, 2));
+    return;
+  }
+
+  if (command === "host-run") {
+    const result = await runHostMapPlatformLoop(config);
+    console.log(JSON.stringify({
+      agent: result.agent,
+      status: result.status,
+      runPath: result.runPath,
+      resultPath: result.resultPath,
       summary: result.summary,
       blockers: result.blockers,
     }, null, 2));

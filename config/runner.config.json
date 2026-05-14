@@ -1,10 +1,13 @@
 {
   "mcpServerRoot": "/Users/abhisheksrivastava/intact-mcp-server",
   "mapPlatformRoot": "/Users/abhisheksrivastava/map_platform",
+  "hostStrategyRoot": "/Users/abhisheksrivastava/host_strategy",
   "activeProduct": "map-platform",
   "llmProvider": "none",
+  "openaiModel": "gpt-5.2",
   "maxIterationsPerRun": 1,
   "defaultAutomationId": "intact-agent-runner-manual",
+  "commitAndPush": true,
   "policy": {
     "allowProductionDeploy": false,
     "allowSecretsAccess": false,

@@ -9,14 +9,15 @@ Current mode:
 - deterministic local orchestration;
 - agent role selection;
 - run-log creation;
-- no LLM calls;
-- no direct MCP stdio calls yet.
+- mandatory host-context preflight;
+- OpenAI-backed bounded patch generation;
+- repo-local verification;
+- commit-and-push finalization.
 
 Future mode:
 
 - connect to `intact-mcp-server` as an MCP client;
-- call MCP tools directly;
-- use LLM provider adapters for reasoning/code generation;
+- call MCP tools directly instead of reading artifacts only;
 - execute named deep agents as independent workers;
 - expose an agent dashboard.
 
@@ -26,39 +27,44 @@ Future mode:
 | --- | --- |
 | `src/cli.js` | Command-line entrypoint. |
 | `src/runner.js` | Product runner and role orchestration. |
+| `src/host-loop.js` | Host-loop replacement for scheduled map-platform development. |
+| `src/development-agent.js` | Bounded OpenAI decision parsing, patch application, verification, and Git finalization. |
+| `src/commands.js` | Child-process wrapper used for preflight, verification, and Git commands. |
 | `src/agents.js` | Loads and selects agent specs. |
 | `src/context.js` | Reads tasks, feedback, proposals, results, and run logs. |
-| `src/llm.js` | Provider adapter boundary. |
-| `src/run-log.js` | Writes agent run audit logs. |
+| `src/llm.js` | Provider adapter boundary, including OpenAI Responses API. |
+| `src/run-log.js` | Writes agent run audit logs and implementation results. |
 
 ## Why This Exists Beside Codex
 
-Codex automations are currently the scheduler. This runner becomes the self-hosted execution layer that Codex can call.
+Codex app automations could not reliably pass the GitHub DNS/push gate in this environment. This runner is designed to run from the host through `launchd`, so network and Git finalization happen in the same context a developer shell uses.
 
 Target relationship:
 
 ```text
-Codex automation
-  -> npm run run:map
-      -> intact-agent-runner
-          -> MCP server tools/artifacts
-          -> product repo
-          -> LLM provider
+launchd at :00/:20/:40
+  -> scripts/run-map-platform-loop.sh
+      -> npm run host-run:map
+          -> canonical preflight
+          -> OpenAI-backed bounded agent
+          -> product repo verification
+          -> commit/push
+          -> MCP artifact logs
 ```
 
-## Current Codex Integration
+## Scheduling
 
-The three map-platform development automations now call this runner first:
+The LaunchAgent template lives at:
 
-- `map-platform-daily-agent-loop`
-- `map-platform-daily-agent-loop-20`
-- `map-platform-daily-agent-loop-40`
+```text
+launchd/com.intact.map-platform-loop.plist
+```
 
-Current command:
+Install or refresh it with:
 
 ```bash
 cd /Users/abhisheksrivastava/intact-agent-runner
-npm run run:map
+bash scripts/install-launchd-map-platform-loop.sh
 ```
 
-Because `LLM_PROVIDER=none` by default, this currently performs deterministic orchestration and run-log creation. Codex may then continue with supervised low-risk implementation work in the same scheduled cycle.
+The wrapper uses `/tmp/intact-map-platform-host-runner.lock` to prevent overlapping runs.

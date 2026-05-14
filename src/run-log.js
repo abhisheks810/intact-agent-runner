@@ -79,3 +79,42 @@ export async function writeAgentRun(config, run) {
   await writeText(fallbackPath, content);
   return fallbackPath;
 }
+
+export async function writeImplementationResult(config, result) {
+  const fileName = `${stamp()}-${result.slug || result.agent || "map-platform-host-runner"}.md`;
+  const primaryPath = path.join(config.mcpServerRoot, "data", "map-platform-implementation-results", fileName);
+  const fallbackPath = path.join(config.agentRunnerRoot, "data", "map-platform-implementation-results", fileName);
+  const content = [
+    `# Implementation Result: ${result.title || result.agent || "map-platform host runner"}`,
+    "",
+    `Created: ${new Date().toISOString()}`,
+    `Status: ${result.status}`,
+    "",
+    "## Summary",
+    "",
+    result.summary || "No summary recorded.",
+    "",
+    "## Verification",
+    "",
+    list(result.verification, "Not run"),
+    "",
+    "## Git Finalization",
+    "",
+    list(result.gitFinalization, "Not attempted"),
+    "",
+    "## Blockers",
+    "",
+    list(result.blockers),
+    "",
+  ].join("\n");
+
+  try {
+    await writeText(primaryPath, content);
+    return primaryPath;
+  } catch (error) {
+    if (!isWritePermissionError(error)) throw error;
+  }
+
+  await writeText(fallbackPath, content);
+  return fallbackPath;
+}

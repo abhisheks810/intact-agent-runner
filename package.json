@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/cli.js run --product map-platform",
     "run:map": "node src/cli.js run --product map-platform",
+    "host-run:map": "node src/cli.js host-run --product map-platform",
     "plan:map": "node src/cli.js plan --product map-platform",
     "test": "node test/smoke-test.js"
   },

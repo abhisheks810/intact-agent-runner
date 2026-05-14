@@ -1,4 +1,9 @@
 node_modules/
 .DS_Store
 *.log
+logs/
+.env
 data/agent-runs/*.md
+data/map-platform-implementation-results/*.md
+test/fixtures/mcp/data/agent-runs/*.md
+test/fixtures/mcp/data/map-platform-implementation-results/*.md
