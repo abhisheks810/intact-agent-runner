@@ -2,6 +2,8 @@
   "mcpServerRoot": "/Users/abhisheksrivastava/intact-mcp-server",
   "mapPlatformRoot": "/Users/abhisheksrivastava/map_platform",
   "hostStrategyRoot": "/Users/abhisheksrivastava/host_strategy",
+  "deepAgentHarnessRoot": "/Users/abhisheksrivastava/deep_agent_harness",
+  "boundaryPolicyPath": "/Users/abhisheksrivastava/deep_agent_harness/policies/boundary-components.json",
   "activeProduct": "map-platform",
   "llmProvider": "none",
   "openaiModel": "gpt-5.2",

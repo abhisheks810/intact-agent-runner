@@ -20,14 +20,63 @@ RUNTIME_ROOT = Path(RUNTIME.name)
 RUNTIME_AGENT_ROOT = RUNTIME_ROOT / "agent-runner"
 RUNTIME_MCP_ROOT = RUNTIME_ROOT / "mcp"
 RUNTIME_HOST_STRATEGY_ROOT = RUNTIME_ROOT / "host_strategy"
+RUNTIME_DEEP_HARNESS_ROOT = RUNTIME_ROOT / "deep_agent_harness"
 shutil.copytree(FIXTURE_ROOT / "mcp", RUNTIME_MCP_ROOT)
 shutil.copytree(FIXTURE_ROOT / "host_strategy", RUNTIME_HOST_STRATEGY_ROOT)
+(RUNTIME_DEEP_HARNESS_ROOT / "policies").mkdir(parents=True)
+(RUNTIME_DEEP_HARNESS_ROOT / "policies" / "boundary-components.json").write_text(json.dumps({
+    "version": "test",
+    "name": "test-boundary-policy",
+    "core_rule": "Harness owns writes, verification, diffs, approvals, commits, and publishing.",
+    "repositories": [
+        {"name": "map_platform", "path": str(ROOT), "plane": "product", "responsibility": "test", "agent_access": "test"},
+        {"name": "intact-mcp-server", "path": str(RUNTIME_MCP_ROOT), "plane": "agent", "responsibility": "test", "agent_access": "test"},
+        {"name": "intact-agent-runner", "path": str(RUNTIME_AGENT_ROOT), "plane": "agent", "responsibility": "test", "agent_access": "test"},
+        {"name": "deep_agent_harness", "path": str(RUNTIME_DEEP_HARNESS_ROOT), "plane": "control", "responsibility": "test", "agent_access": "test"},
+        {"name": "host_strategy", "path": str(RUNTIME_HOST_STRATEGY_ROOT), "plane": "control", "responsibility": "test", "agent_access": "test"},
+    ],
+    "boundaries": [{"id": boundary, "name": boundary, "plane": "control", "risk": "medium", "controls": ["test"], "evidence": ["test"]} for boundary in [
+        "strategy-governance",
+        "repository-github",
+        "agent-orchestration",
+        "mcp-tools",
+        "execution-sandbox",
+        "identity-secrets",
+        "network",
+        "data-privacy",
+        "india-geospatial",
+        "map-data-pipeline",
+        "product-api",
+        "verification",
+        "release-deployment",
+        "observability-audit",
+        "review-safety",
+        "sustainability",
+    ]],
+    "required_run_artifacts": [
+        "task_intake",
+        "preflight_result",
+        "tool_transcript_summary",
+        "changed_files",
+        "diff_or_blocker",
+        "verification_evidence",
+        "review_outcome",
+        "final_disposition",
+    ],
+    "daily_agent_loop": {
+        "schedule_minutes": [0, 20, 40],
+        "boundary_policy_path": str(RUNTIME_DEEP_HARNESS_ROOT / "policies" / "boundary-components.json"),
+    },
+    "approval_rules": {"production_deployment": "explicit_human_approval_required"},
+}), encoding="utf-8")
 (RUNTIME_AGENT_ROOT / "config").mkdir(parents=True)
 (RUNTIME_AGENT_ROOT / "data").mkdir(parents=True)
 (RUNTIME_AGENT_ROOT / "config" / "runner.config.json").write_text(json.dumps({
     "mcpServerRoot": str(RUNTIME_MCP_ROOT),
     "mapPlatformRoot": str(ROOT),
     "hostStrategyRoot": str(RUNTIME_HOST_STRATEGY_ROOT),
+    "deepAgentHarnessRoot": str(RUNTIME_DEEP_HARNESS_ROOT),
+    "boundaryPolicyPath": str(RUNTIME_DEEP_HARNESS_ROOT / "policies" / "boundary-components.json"),
     "activeProduct": "map-platform",
     "llmProvider": "none",
     "openaiModel": "gpt-5.2",
@@ -39,6 +88,8 @@ os.environ.update({
     "MCP_SERVER_ROOT": str(RUNTIME_MCP_ROOT),
     "MAP_PLATFORM_ROOT": str(ROOT),
     "HOST_STRATEGY_ROOT": str(RUNTIME_HOST_STRATEGY_ROOT),
+    "DEEP_AGENT_HARNESS_ROOT": str(RUNTIME_DEEP_HARNESS_ROOT),
+    "BOUNDARY_POLICY_PATH": str(RUNTIME_DEEP_HARNESS_ROOT / "policies" / "boundary-components.json"),
     "LLM_PROVIDER": "none",
     "PYTHONDONTWRITEBYTECODE": "1",
 })
@@ -51,6 +102,8 @@ def run(args, env=None):
         "MCP_SERVER_ROOT": str(RUNTIME_MCP_ROOT),
         "MAP_PLATFORM_ROOT": str(ROOT),
         "HOST_STRATEGY_ROOT": str(RUNTIME_HOST_STRATEGY_ROOT),
+        "DEEP_AGENT_HARNESS_ROOT": str(RUNTIME_DEEP_HARNESS_ROOT),
+        "BOUNDARY_POLICY_PATH": str(RUNTIME_DEEP_HARNESS_ROOT / "policies" / "boundary-components.json"),
         "LLM_PROVIDER": "none",
         "PYTHONDONTWRITEBYTECODE": "1",
     })

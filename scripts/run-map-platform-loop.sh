@@ -26,6 +26,8 @@ fi
 export AGENT_RUNNER_ROOT="$ROOT"
 export MCP_SERVER_ROOT="${MCP_SERVER_ROOT:-/Users/abhisheksrivastava/intact-mcp-server}"
 export MAP_PLATFORM_ROOT="${MAP_PLATFORM_ROOT:-/Users/abhisheksrivastava/map_platform}"
+export DEEP_AGENT_HARNESS_ROOT="${DEEP_AGENT_HARNESS_ROOT:-/Users/abhisheksrivastava/deep_agent_harness}"
+export BOUNDARY_POLICY_PATH="${BOUNDARY_POLICY_PATH:-$DEEP_AGENT_HARNESS_ROOT/policies/boundary-components.json}"
 export LLM_PROVIDER="${LLM_PROVIDER:-openai}"
 export AUTOMATION_ID="${AUTOMATION_ID:-intact-agent-runner-launchd-map-platform}"
 export COMMIT_AND_PUSH="${COMMIT_AND_PUSH:-1}"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .boundary_policy import load_and_validate_boundary_policy
 from .commands import command_summary, git_status, run_command
 from .development_agent import (
     finalize_repo_paths,
@@ -30,6 +31,19 @@ def all_repos_clean(config) -> dict:
 
 
 def run_host_map_platform_loop(config) -> dict:
+    boundary_policy = load_and_validate_boundary_policy(config)
+    if not boundary_policy["ok"]:
+        return write_failure(config, {
+            "agent": "platform-infra-agent",
+            "status": "failed",
+            "summary": "Host runner stopped before repository preflight because the deep-agent boundary policy did not validate.",
+            "inputsRead": [
+                config.boundary_policy_path,
+            ],
+            "verification": boundary_policy["results"],
+            "blockers": boundary_policy["blockers"],
+        })
+
     status_check = all_repos_clean(config)
     if not status_check["clean"]:
         return write_failure(config, {
@@ -98,12 +112,14 @@ def run_host_map_platform_loop(config) -> dict:
             "data/user-feedback/",
             "git status for all allowed repos",
             "canonical loop preflight",
+            "deep_agent_harness boundary policy",
             "intact-mcp-server stdio tools",
         ],
         "tasksConsidered": [task["relative"] for task in plan["context"]["tasks"]],
         "changesMade": decision["changedFiles"] if patch["applied"] else ["No repository files changed"],
         "artifactsWritten": ["Agent-run artifact pending", "Implementation-result artifact pending"],
         "verification": [
+            *boundary_policy["results"],
             command_summary(preflight),
             *implementation["inspectResults"],
             *implementation["repairResults"],

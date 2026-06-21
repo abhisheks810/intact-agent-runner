@@ -13,6 +13,8 @@ class Config:
     mcp_server_root: str
     map_platform_root: str
     host_strategy_root: str
+    deep_agent_harness_root: str
+    boundary_policy_path: str
     llm_provider: str
     openai_model: str
     automation_id: str
@@ -32,6 +34,16 @@ def load_config() -> Config:
         or raw.get("hostStrategyRoot")
         or "/Users/abhisheksrivastava/host_strategy"
     )
+    deep_agent_harness_root = (
+        os.environ.get("DEEP_AGENT_HARNESS_ROOT")
+        or raw.get("deepAgentHarnessRoot")
+        or "/Users/abhisheksrivastava/deep_agent_harness"
+    )
+    boundary_policy_path = (
+        os.environ.get("BOUNDARY_POLICY_PATH")
+        or raw.get("boundaryPolicyPath")
+        or str(Path(deep_agent_harness_root) / "policies" / "boundary-components.json")
+    )
     commit_env = os.environ.get("COMMIT_AND_PUSH")
     commit_and_push = commit_env == "1" if commit_env is not None else raw.get("commitAndPush") is not False
     mcp_stdio_env = os.environ.get("MCP_STDIO_ENABLED")
@@ -46,6 +58,8 @@ def load_config() -> Config:
         mcp_server_root=mcp_server_root,
         map_platform_root=map_platform_root,
         host_strategy_root=host_strategy_root,
+        deep_agent_harness_root=deep_agent_harness_root,
+        boundary_policy_path=boundary_policy_path,
         llm_provider=os.environ.get("LLM_PROVIDER") or raw.get("llmProvider") or "none",
         openai_model=os.environ.get("OPENAI_MODEL") or raw.get("openaiModel") or "gpt-5.2",
         automation_id=os.environ.get("AUTOMATION_ID") or raw["defaultAutomationId"],
